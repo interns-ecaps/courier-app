@@ -33,7 +33,7 @@ class ShipmentStatus(Enum):
 class StatusTracker(Base):
     __tablename__ = "status_tracker"
     id = Column(Integer, primary_key=True, index=True)
-    # shipment_id = Column(Integer, ForeignKey("shipments.id"), nullable=False)
+    shipment_id = Column(Integer, ForeignKey("shipments.id"), nullable=False)
 
     package_id = Column(Integer, ForeignKey("packages.id"), nullable=False)
     status = Column(SQLEnum(ShipmentStatus), default=ShipmentStatus.PENDING)
