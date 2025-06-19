@@ -35,7 +35,7 @@ class ShipmentType(str, Enum):
 
 
 class Shipment(Base):
-    _tablename_ = "shipments"
+    __tablename__ = "shipments"
 
     id = Column(Integer, primary_key=True, index=True)
     tracking_number = Column(String(50), unique=True, index=True, nullable=False)
