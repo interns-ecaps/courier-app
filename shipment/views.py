@@ -17,8 +17,8 @@ class CurrencyService:
 
 class PackageService:
     def create_package(package_data:CreatePackage, db: Session):
-        currency_id = package_data.currency_id
-        currency = Currency(id=currency_id)
+        # currency_id = package_data.currency_id
+        currency = db.query(Currency).filter(Currency.id == package_data.currency_id).first()
         if not currency:
             raise Exception("currency not found")
         

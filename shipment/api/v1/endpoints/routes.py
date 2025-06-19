@@ -10,11 +10,6 @@ from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage
 shipment_router = APIRouter()
 
 
-@shipment_router.get("/health_check/")
-def health_check():
-    return {"status": "active", "message": "Shipment Service is up and running"}
-
-
 # ================================ CURRENCY =====================================
 
 

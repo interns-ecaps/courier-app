@@ -13,3 +13,5 @@ class CreatePackage(BaseModel):
     is_negotiable : bool
     currency_id : int
     
+    class Config:
+        orm_mode = True
