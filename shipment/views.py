@@ -1,5 +1,5 @@
 from shipment.api.v1.models.package import Currency
-from shipment.api.v1.schemas.currency import CreateCurrency
+from shipment.api.v1.schemas.shipment import CreateCurrency
 from sqlalchemy.orm import Session
 
 class CurrencyService:
