@@ -36,7 +36,7 @@ class PaymentStatus(Enum):
 class Payment(Base):
     __tablename__ = "payments"
     id = Column(Integer, primary_key=True, index=True)
-    # shipment_id = Column(Integer, ForeignKey("shipments.id"), nullable=False)
+    shipment_id = Column(Integer, ForeignKey("shipments.id"), nullable=False)
     
     package_id = Column(ForeignKey("packages.id"), nullable=False)
     payment_method = Column(SQLEnum(PaymentMethod), default=PaymentMethod.CASH)

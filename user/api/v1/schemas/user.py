@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, constr
+from pydantic import BaseModel, EmailStr, constr, Field
 
 
 # Enum for user roles
@@ -17,7 +17,7 @@ class SignUpUser(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
-    password: constr(min_length=6)
+    password: constr(min_length=6)  # type: ignore
     phone_number: str
     user_type: UserType
 
@@ -38,20 +38,20 @@ class CreateUser(BaseModel):
         orm_mode = True
 
 
-# Partial update schema (used with PATCH)
+# # Partial update schema (used with PATCH)
 class UpdateUser(BaseModel):
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    hashed_password: Optional[constr(min_length=6)] = None
-    email: Optional[EmailStr] = None
-    phone_number: Optional[str] = None
-    user_type: Optional[UserType] = None
+    first_name: Optional[str] = Field(None)
+    last_name: Optional[str] = Field(None)
+    hashed_password: Optional[constr(min_length=6)] = Field(None)  # type: ignore
+    email: Optional[EmailStr] = Field(None)
+    phone_number: Optional[str] = Field(None)
+    user_type: Optional[str] = Field(None)
 
     class Config:
         orm_mode = True
 
 
-# Full user update schema (used with PUT)
+# # Full user update schema (used with PUT)
 class ReplaceUser(CreateUser):
     pass  # exact same fields as CreateUser; can extend later if needed
 
@@ -72,16 +72,6 @@ class FetchUser(BaseModel):
         orm_mode = True
 
 
-# update
-class UpdateUser(BaseModel):
-    first_name: Optional[str] = Field(None)
-    last_name: Optional[str] = Field(None)
-    hashed_password: Optional[constr(min_length=6)] = Field(None)
-    email: Optional[EmailStr] = Field(None)
-    phone_number: Optional[str] = Field(None)
-    user_type: Optional[str] = Field(None)
-
-
 # replace
 class ReplaceUser(CreateUser):
     pass
@@ -90,9 +80,10 @@ class ReplaceUser(CreateUser):
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 
+
 class SignUpRequest(BaseModel):
     email: EmailStr
-    password: constr(min_length=6)  # ✅ Add minimum length constraint
+    password: constr(min_length=6)  # type: ignore # ✅ Add minimum length constraint
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     phone_number: Optional[str] = None

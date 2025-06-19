@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from common.database import get_db
 from shipment.api.v1.endpoints import routes
 from user import views
-from user.views import login_user
+from user.views import UserService, login_user
 from user.api.v1.utils.auth import get_current_user
 
 # from user.views import SignUpRequest
