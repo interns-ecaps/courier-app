@@ -90,3 +90,7 @@ def patch_user(
 @user_router.put("/replace_user/{user_id}")
 def replace_user(user_id: int, request: ReplaceUser, db: Session = Depends(get_db)):
     return UserService.replace_user(user_id, request, db)
+
+@user_router.patch("/disable_user/{user_id}")
+def disable_user(user_id: int, db: Session = Depends(get_db)):
+    return UserService.disable_user(user_id, db)

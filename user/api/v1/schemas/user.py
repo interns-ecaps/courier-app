@@ -76,6 +76,12 @@ class FetchUser(BaseModel):
 class ReplaceUser(CreateUser):
     pass
 
+# class UpdateUser(BaseModel):
+#     is_active: bool
+
+#     class Config:
+#         orm_mode = True
+
 
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
