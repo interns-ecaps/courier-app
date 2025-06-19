@@ -59,7 +59,7 @@ class Shipment(Base):
 
     # Shipment details
     shipment_type = Column(SQLEnum(ShipmentType), default=ShipmentType.STANDARD)
-    shipment_status_id = Column(Integer, ForeignKey("status_tracker.id"), nullable=False)
+    # shipment_status_id = Column(Integer, ForeignKey("status_tracker.id"), nullable=False)
 
     # Package details
     package_id = Column(Integer, ForeignKey("packages.id"), nullable=False)
