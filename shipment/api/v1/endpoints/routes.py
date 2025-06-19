@@ -5,7 +5,7 @@ from shipment import views
 from fastapi import Request, Depends
 from sqlalchemy.orm import Session
 from common.database import get_db
-from shipment.api.v1.schemas.currency import CreateCurrency
+from shipment.api.v1.schemas.shipment import CreateCurrency
 
 shipment_router = APIRouter()
 
@@ -21,6 +21,3 @@ def health_check():
 @shipment_router.post("/create_currency/")
 def create_currency(request: CreateCurrency, db: Session = Depends(get_db)):
     return views.CurrencyService.create_currency(request, db)
-
-
-# ==============================================================================

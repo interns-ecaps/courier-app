@@ -35,7 +35,7 @@ class ShipmentType(str, Enum):
 
 
 class Shipment(Base):
-    __tablename__ = "shipments"
+    _tablename_ = "shipments"
 
     id = Column(Integer, primary_key=True, index=True)
     tracking_number = Column(String(50), unique=True, index=True, nullable=False)
@@ -59,7 +59,7 @@ class Shipment(Base):
 
     # Shipment details
     shipment_type = Column(SQLEnum(ShipmentType), default=ShipmentType.STANDARD)
-    shipment_status_id = Column(Integer, ForeignKey("status_tracker.id"), nullable=False)
+    # shipment_status_id = Column(Integer, ForeignKey("status_tracker.id"), nullable=False)
 
     # Package details
     package_id = Column(Integer, ForeignKey("packages.id"), nullable=False)
@@ -67,8 +67,8 @@ class Shipment(Base):
 
     # Dates
     pickup_date = Column(DateTime(timezone=True))
-    delivery_date = Column(DateTime(timezone=True))
-    estimated_delivery = Column(DateTime(timezone=True))
+    delivery_date = Column(DateTime(timezone=True), nullable=True)
+    estimated_delivery = Column(DateTime(timezone=True), nullable=True)
 
     # Additional info
     special_instructions = Column(Text)
@@ -76,7 +76,7 @@ class Shipment(Base):
     signature_required = Column(Boolean, default=False)
 
     # Payment details
-    payment_id = Column(Integer, ForeignKey("payments.id"), nullable=False)
+    # payment_id = Column(Integer, ForeignKey("payments.id"), nullable=False)
     # payment_status = Column(String(100), ForeignKey("payments.payment_status"))
     
 
@@ -99,6 +99,3 @@ class Shipment(Base):
     status = relationship("StatusTracker", back_populates="shipment")
 
     packages = relationship("Package", back_populates="shipment", cascade="all, delete-orphan", single_parent=True)
-
-
-    

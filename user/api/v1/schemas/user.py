@@ -1,6 +1,8 @@
 from datetime import datetime
 from enum import Enum
 from typing import Optional
+from pydantic import BaseModel, Field
+
 
 from pydantic import BaseModel, EmailStr, constr
 
@@ -22,7 +24,7 @@ class SignUpUser(BaseModel):
     user_type: UserType
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Input for internal user creation (password already hashed)
