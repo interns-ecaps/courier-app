@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, EmailStr, Field, constr
 from typing import Optional
-
+import re
 
 class UserType(str, Enum):
     importer_exporter = "importer_exporter"
@@ -55,6 +55,12 @@ class ReplaceUser(CreateUser):
 
 
 from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
+
+from pydantic import BaseModel, EmailStr, Field, constr
+from typing import Optional
+
+from pydantic import BaseModel, EmailStr, Field, constr
 from typing import Optional
 
 class SignUpRequest(BaseModel):

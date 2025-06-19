@@ -41,13 +41,11 @@ def login_user(email: str, password: str, db: Session):
     refresh_token_expires = settings.refresh_token_expire_days
 
     access_token = create_access_token(
-        data={"sub": str(user.id)},
-        expires_delta=access_token_expires
+        data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
 
     refresh_token = create_refresh_token(
-        data={"sub": str(user.id)},
-        expires_days=refresh_token_expires
+        data={"sub": str(user.id)}, expires_days=refresh_token_expires
     )
 
     return {
@@ -59,10 +57,9 @@ def login_user(email: str, password: str, db: Session):
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
-            "user_type": user.user_type
-        }
+            "user_type": user.user_type,
+        },
     }
-
 
 
 def signup_user(user_data: SignUpRequest, db: Session):
@@ -89,25 +86,6 @@ def signup_user(user_data: SignUpRequest, db: Session):
     return {"user_id": new_user.id, "email": new_user.email}
 
 
-# ---------------------------------------------------#
-
-
-# def login_user(email: str, password: str, db: Session):
-#     db_user = db.query(User).filter(User.email == email).first()  # ✅ email, not username
-
-#     if not db_user or not verify_password(password, db_user.hashed_password):  # ✅ hashed_password
-#         raise HTTPException(status_code=401, detail="Invalid credentials")
-
-#     access_token_expires = timedelta(minutes=settings.jwt_expire_minutes)
-#     access_token = create_access_token(
-#         data={"sub": str(db_user.id)},  # ✅ assuming 'id' is your primary key
-#         expires_delta=access_token_expires
-#     )
-
-#     return {
-#         "access_token": access_token,
-#         "token_type": "bearer"
-#     }
 from user.api.v1.models.users import User
 from user.api.v1.schemas.user import CreateUser, SignUpRequest, UpdateUser
 from sqlalchemy.orm import Session
