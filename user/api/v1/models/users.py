@@ -1,4 +1,4 @@
-#user/api/v1/models/users.py
+# user/api/v1/models/users.py
 
 from datetime import datetime
 from enum import Enum
@@ -41,18 +41,28 @@ class User(Base):
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     phone_number = Column(String(20), nullable=False)
-    user_type = Column(SQLEnum(UserType, values_callable=lambda obj: [e.value for e in obj]), nullable=False)
+    user_type = Column(
+        SQLEnum(UserType, values_callable=lambda obj: [e.value for e in obj]),
+        nullable=False,
+    )
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    addresses = relationship("Address", back_populates="user", cascade="all, delete-orphan")
+    addresses = relationship(
+        "Address", back_populates="user", cascade="all, delete-orphan"
+    )
 
-    sent_shipments = relationship("Shipment", foreign_keys="[Shipment.sender_id]", back_populates="sender")
-    received_shipments = relationship("Shipment", foreign_keys="[Shipment.recipient_id]", back_populates="recipient")
-    courier_shipments = relationship("Shipment", back_populates="courier",foreign_keys="[Shipment.courier_id]")
-
+    sent_shipments = relationship(
+        "Shipment", foreign_keys="[Shipment.sender_id]", back_populates="sender"
+    )
+    received_shipments = relationship(
+        "Shipment", foreign_keys="[Shipment.recipient_id]", back_populates="recipient"
+    )
+    courier_shipments = relationship(
+        "Shipment", back_populates="courier", foreign_keys="[Shipment.courier_id]"
+    )
 
     def __str__(self):
         return f"<User>-- {self.email}:{self.user_type}"

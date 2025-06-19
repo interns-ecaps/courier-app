@@ -76,7 +76,7 @@ class Shipment(Base):
     signature_required = Column(Boolean, default=False)
 
     # Payment details
-    payment_id = Column(Integer, ForeignKey("payments.id"), nullable=False)
+    # payment_id = Column(Integer, ForeignKey("payments.id"), nullable=False)
     # payment_status = Column(String(100), ForeignKey("payments.payment_status"))
     
 

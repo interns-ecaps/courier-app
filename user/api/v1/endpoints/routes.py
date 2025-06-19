@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, Form, HTTPException, Body, Query
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
+
 from common.database import get_db
 from shipment.api.v1.endpoints import routes
 from user import views
-from user.views import login_user
+from user.views import UserService, login_user
 from user.api.v1.utils.auth import get_current_user
 
 # from user.views import SignUpRequest
@@ -28,9 +29,9 @@ class LoginRequest(BaseModel):
     password: str
 
 
-@user_router.get("/health_check/")
-def health_check():
-    return {"status": "actived", "message": "User Service is up and running"}
+# @user_router.get("/health_check/")
+# def health_check():
+#     return {"status": "actived", "message": "User Service is up and running"}
 
 
 @user_router.get("/read_profile/")
@@ -62,7 +63,7 @@ def get_users(
     first_name: str = Query(default=None, description="Filter by first name"),
     db: Session = Depends(get_db),
 ):
-    result = views.UserService.get_users(
+    result = UserService.get_users(
         db=db,
         user_id=user_id,
         email=email,
@@ -88,4 +89,4 @@ def patch_user(
 
 @user_router.put("/replace_user/{user_id}")
 def replace_user(user_id: int, request: ReplaceUser, db: Session = Depends(get_db)):
-    return views.UserService.replace_user(user_id, request, db)
+    return UserService.replace_user(user_id, request, db)

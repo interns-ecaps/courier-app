@@ -1,13 +1,18 @@
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
-from fastapi import HTTPException
-from common.database import SessionLocal
-from user.api.v1.utils.auth import create_access_token, create_refresh_token
-from user.api.v1.models.users import User  # ✅ Correct import
-from passlib.context import CryptContext
-from common.config import settings
-from user.api.v1.schemas.user import SignUpRequest
 
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+
+from fastapi import HTTPException, status
+
+from passlib.context import CryptContext
+
+from common.database import SessionLocal
+from common.config import settings
+
+from user.api.v1.utils.auth import create_access_token, create_refresh_token
+from user.api.v1.models.users import User
+from user.api.v1.schemas.user import CreateUser, SignUpRequest, UpdateUser
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -86,13 +91,6 @@ def signup_user(user_data: SignUpRequest, db: Session):
     return {"user_id": new_user.id, "email": new_user.email}
 
 
-from user.api.v1.models.users import User
-from user.api.v1.schemas.user import CreateUser, SignUpRequest, UpdateUser
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from fastapi import HTTPException, status
-
-
 class UserService:
     def create_user(user_data: CreateUser, db: Session):
         try:
@@ -102,13 +100,13 @@ class UserService:
             db.refresh(new_user)
             return new_user
 
-        except IntegrityError as e:
+        except IntegrityError:
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User with this information already exists or required fields are missing.",
             )
-        except SQLAlchemyError as e:
+        except SQLAlchemyError:
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -155,7 +153,6 @@ class UserService:
             query = query.filter(User.first_name.ilike(f"%{first_name}%"))
 
         users = query.all()
-
         if not users:
             raise HTTPException(
                 status_code=404, detail="No users found matching the criteria"
