@@ -72,13 +72,31 @@ class FetchUser(BaseModel):
         orm_mode = True
 
 
-# Auth token response schema
-class Token(BaseModel):
-    access_token: str
-    refresh_token: Optional[str] = None
-    token_type: str
+# update
+class UpdateUser(BaseModel):
+    first_name: Optional[str] = Field(None)
+    last_name: Optional[str] = Field(None)
+    hashed_password: Optional[constr(min_length=6)] = Field(None)
+    email: Optional[EmailStr] = Field(None)
+    phone_number: Optional[str] = Field(None)
+    user_type: Optional[str] = Field(None)
 
 
-# Token payload schema
-class TokenData(BaseModel):
-    username: Optional[str] = None  # or `user_id: Optional[int]` if using ID in token
+# replace
+class ReplaceUser(CreateUser):
+    pass
+
+
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
+
+class SignUpRequest(BaseModel):
+    email: EmailStr
+    password: constr(min_length=6)  # ✅ Add minimum length constraint
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    user_type: Optional[str] = None
+
+    class Config:
+        orm_mode = True
