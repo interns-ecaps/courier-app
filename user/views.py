@@ -5,6 +5,10 @@ from common.database import SessionLocal
 from user.api.v1.utils.auth import create_access_token, create_refresh_token
 from user.api.v1.models.users import User  # ✅ Correct import
 from passlib.context import CryptContext
+
+from user.api.v1.models.users import User
+from user.api.v1.schemas.user import CreateUser, SignUpUser, UpdateUser
+from user.api.v1.utils.auth import create_access_token, create_refresh_token
 from common.config import settings
 from user.api.v1.schemas.user import SignUpRequest
 
@@ -124,13 +128,13 @@ class UserService:
             db.refresh(new_user)
             return new_user
 
-        except IntegrityError as e:
+        except IntegrityError:
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User with this information already exists or required fields are missing.",
             )
-        except SQLAlchemyError as e:
+        except SQLAlchemyError:
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -177,7 +181,6 @@ class UserService:
             query = query.filter(User.first_name.ilike(f"%{first_name}%"))
 
         users = query.all()
-
         if not users:
             raise HTTPException(
                 status_code=404, detail="No users found matching the criteria"
