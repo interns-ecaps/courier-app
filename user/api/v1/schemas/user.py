@@ -80,12 +80,6 @@ class ReplaceUser(CreateUser):
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field, constr
-from typing import Optional
-
-from pydantic import BaseModel, EmailStr, Field, constr
-from typing import Optional
-
 
 class SignUpRequest(BaseModel):
     email: EmailStr
