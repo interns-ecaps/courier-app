@@ -24,7 +24,7 @@ class SignUpUser(BaseModel):
     user_type: UserType
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 
 # Input for internal user creation (password already hashed)
