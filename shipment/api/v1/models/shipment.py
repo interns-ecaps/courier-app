@@ -67,8 +67,8 @@ class Shipment(Base):
 
     # Dates
     pickup_date = Column(DateTime(timezone=True))
-    delivery_date = Column(DateTime(timezone=True))
-    estimated_delivery = Column(DateTime(timezone=True))
+    delivery_date = Column(DateTime(timezone=True), nullable=True)
+    estimated_delivery = Column(DateTime(timezone=True), nullable=True)
 
     # Additional info
     special_instructions = Column(Text)
