@@ -30,7 +30,7 @@ class LoginRequest(BaseModel):
 
 @user_router.get("/health_check/")
 def health_check():
-    return {"status": "active", "message": "User Service is up and running"}
+    return {"status": "actived", "message": "User Service is up and running"}
 
 
 @user_router.get("/read_profile/")
