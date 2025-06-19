@@ -10,8 +10,10 @@ from sqlalchemy.orm import joinedload
 
 from common.database import get_db
 from shipment.api.v1.models.shipment import Role, User
-from shipment.api.v1.schemas.sales_dashboard import TokenData
 from common.config import settings
+
+from user.api.v1.schemas import TokenData
+
 
 # from .database import get_db
 
@@ -23,9 +25,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.jwt_expire_minutes
 REFRESH_TOKEN_EXPIRE_DAYS = settings.refresh_token_expire_days
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-print(oauth2_scheme, ":::oauth2_scheme")
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
