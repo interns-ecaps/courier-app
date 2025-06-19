@@ -52,3 +52,18 @@ class UpdateUser(BaseModel):
 # replace
 class ReplaceUser(CreateUser):
     pass
+
+
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
+
+class SignUpRequest(BaseModel):
+    email: EmailStr
+    password: constr(min_length=6)  # ✅ Add minimum length constraint
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    user_type: Optional[str] = None
+
+    class Config:
+        orm_mode = True
