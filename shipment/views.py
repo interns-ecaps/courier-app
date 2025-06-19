@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from shipment.api.v1.models.package import Currency, Package, PackageType
 from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage
 from sqlalchemy.orm import Session
@@ -22,7 +23,7 @@ class PackageService:
             db.query(Currency).filter(Currency.id == package_data.currency_id).first()
         )
         if not currency:
-            raise Exception("currency not found")
+            raise HTTPException(status_code=400, detail="Currency not found")
 
 
         try:
