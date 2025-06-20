@@ -5,45 +5,45 @@ from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage, Crea
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-# class ShipmentService:
-#     def create_shipment(shipment_data: CreateShipment, db: Session):
-#         new_shipment = Shipment(**shipment_data.dict())
-#         db.add(new_shipment)
-#         db.commit()
-#         db.refresh(new_shipment)
-#         return new_shipment
+class ShipmentService:
+    def create_shipment(shipment_data: CreateShipment, db: Session):
+        new_shipment = Shipment(**shipment_data.dict())
+        db.add(new_shipment)
+        db.commit()
+        db.refresh(new_shipment)
+        return new_shipment
     
-#     def get_shipments(
-#         db: Session,
-#         package_type: Optional[str] = None,
-#         currency_id: Optional[int] = None,
-#         is_negotiable: Optional[bool] = None,
-#         page: int = 1,
-#         limit: int = 10,
-#     ):
-#         query = db.query(Package).filter(Package.is_deleted == False)
+    def get_shipments(
+        db: Session,
+        package_type: Optional[str] = None,
+        currency_id: Optional[int] = None,
+        is_negotiable: Optional[bool] = None,
+        page: int = 1,
+        limit: int = 10,
+    ):
+        query = db.query(Package).filter(Package.is_deleted == False)
 
-#         if package_type:
-#             try:
-#                 query = query.filter(Package.package_type == PackageType(package_type))
-#             except ValueError:
-#                 raise HTTPException(status_code=400, detail="Invalid package_type")
+        if package_type:
+            try:
+                query = query.filter(Package.package_type == PackageType(package_type))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid package_type")
 
-#         if currency_id:
-#             query = query.filter(Package.currency_id == currency_id)
+        if currency_id:
+            query = query.filter(Package.currency_id == currency_id)
 
-#         if is_negotiable is not None:
-#             query = query.filter(Package.is_negotiable == is_negotiable)
+        if is_negotiable is not None:
+            query = query.filter(Package.is_negotiable == is_negotiable)
 
-#         total = query.count()
-#         results = query.offset((page - 1) * limit).limit(limit).all()
+        total = query.count()
+        results = query.offset((page - 1) * limit).limit(limit).all()
 
-#         return {
-#             "page": page,
-#             "limit": limit,
-#             "total": total,
-#             "results": results
-#         }
+        return {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "results": results
+        }
 
 
 class CurrencyService:
