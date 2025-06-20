@@ -21,7 +21,7 @@ from typing import List, Optional
 #         page: int = 1,
 #         limit: int = 10,
 #     ):
-#         query = db.query(Package).filter(Package.is_delete == False)
+#         query = db.query(Package).filter(Package.is_deleted == False)
 
 #         if package_type:
 #             try:
@@ -95,7 +95,7 @@ class PackageService:
         page: int = 1,
         limit: int = 10,
     ):
-        query = db.query(Package).filter(Package.is_delete == False)
+        query = db.query(Package).filter(Package.is_deleted == False)
 
         if package_type:
             try:
@@ -132,10 +132,10 @@ class PackageService:
         if not package:
             raise HTTPException(status_code=404, detail="Package not found")
         
-        if package.is_delete:
+        if package.is_deleted:
             raise HTTPException(status_code=400, detail="Package is already deleted")
 
-        package.is_delete = True
+        package.is_deleted = True
 
         try:
             db.commit()
