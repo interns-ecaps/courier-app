@@ -1,6 +1,6 @@
 # common/config.py
 
-from pydantic_settings import BaseSettings
+from pydantic import BaseSettings
 from pydantic import BaseModel
 
 class Settings(BaseSettings):

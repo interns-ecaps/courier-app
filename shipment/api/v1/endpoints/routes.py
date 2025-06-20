@@ -5,9 +5,11 @@ from shipment import views
 from fastapi import Request, Depends, Path
 from sqlalchemy.orm import Session
 from common.database import get_db
-from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage,FetchPackage
+from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage,FetchPackage, CreatePayment, UpdatePayment, FetchPayment
 from typing import Optional, List
 shipment_router = APIRouter()
+from shipment.views import PaymentService
+
 
 
 # ================================ CURRENCY =====================================
@@ -16,6 +18,14 @@ shipment_router = APIRouter()
 @shipment_router.post("/create_currency/")
 def create_currency(request: CreateCurrency, db: Session = Depends(get_db)):
     return views.CurrencyService.create_currency(request, db)
+
+@shipment_router.patch("/update_currency/{currency_id}")
+def update_currency(
+    currency_id: int,
+    request: CreateCurrency,
+    db: Session = Depends(get_db)
+):
+    return views.CurrencyService.update_currency(currency_id, request, db)
 
 
 # =============================== PACKAGE ==========================================
@@ -49,3 +59,21 @@ def get_package_by_id(
     db: Session = Depends(get_db),
 ):
     return views.PackageService.get_package_by_id(package_id, db)
+
+#==========payment=============
+
+@shipment_router.post("/create_payment/", response_model=FetchPayment)
+def create_payment(request: CreatePayment, db: Session = Depends(get_db)):
+    return PaymentService.create_payment(request, db)
+
+@shipment_router.get("/get_payment/{payment_id}", response_model=FetchPayment)
+def get_payment(payment_id: int, db: Session = Depends(get_db)):
+    return PaymentService.get_payment_by_id(payment_id, db)
+
+@shipment_router.patch("/update_payment/{payment_id}", response_model=FetchPayment)
+def update_payment(payment_id: int, request: UpdatePayment, db: Session = Depends(get_db)):
+    return PaymentService.update_payment(payment_id, request, db)
+
+@shipment_router.delete("/delete_payment/{payment_id}")
+def delete_payment(payment_id: int, db: Session = Depends(get_db)):
+    return PaymentService.delete_payment(payment_id, db)
