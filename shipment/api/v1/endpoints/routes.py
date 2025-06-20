@@ -1,12 +1,18 @@
-from fastapi import (
-    APIRouter, Body, Depends, HTTPException,Query
-)
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from shipment import views
 from fastapi import Request, Depends, Path
 from sqlalchemy.orm import Session
 from common.database import get_db
-from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage, CreateShipment,FetchPackage, UpdatePackage
+from shipment.api.v1.schemas.shipment import (
+    CreateCurrency,
+    CreatePackage,
+    CreateShipment,
+    FetchPackage,
+    UpdatePackage,
+    CreateStatusTracker
+)
 from typing import Optional, List
+
 shipment_router = APIRouter()
 
 # # ================================ SHIPMENT =====================================
@@ -30,6 +36,7 @@ def create_currency(request: CreateCurrency, db: Session = Depends(get_db)):
 def create_package(request: CreatePackage, db: Session = Depends(get_db)):
     return views.PackageService.create_package(request, db)
 
+
 @shipment_router.get("/packages/")
 def get_packages(
     package_type: Optional[str] = Query(default=None),
@@ -45,8 +52,9 @@ def get_packages(
         currency_id=currency_id,
         is_negotiable=is_negotiable,
         page=page,
-        limit=limit
+        limit=limit,
     )
+
 
 @shipment_router.get("/packages/{package_id}", response_model=FetchPackage)
 def get_package_by_id(
@@ -55,9 +63,11 @@ def get_package_by_id(
 ):
     return views.PackageService.get_package_by_id(package_id, db)
 
+
 @shipment_router.patch("/disable_package/{package_id}")
 def disable_package(package_id: int, db: Session = Depends(get_db)):
     return views.PackageService.disable_package(package_id, db)
+
 
 @shipment_router.patch("/update_package/{package_id}")
 def patch_user(
@@ -67,3 +77,13 @@ def patch_user(
 ):
     print(request.dict(exclude_unset=False))
     return views.PackageService.update_package(package_id, request, db)
+
+
+# ============================= STATUS TRACKER ===================================
+
+@shipment_router.post("/create_status_tracker/")
+def create_status_tracker(
+    request: CreateStatusTracker,
+    db: Session = Depends(get_db)
+):
+    return views.create_status_tracker(request, db)
