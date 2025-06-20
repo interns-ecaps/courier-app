@@ -23,9 +23,9 @@ from sqlalchemy.ext.declarative import declarative_base
 
 # Base = declarative_base()
 
-class IsNegotiable(Enum):
-    NO = "no"
-    YES = "yes"
+# class IsNegotiable(Enum):
+#     NO = "no"
+#     YES = "yes"
 
 class PackageType(Enum):
     STACKABLE_GOODS = "stackable_goods"
