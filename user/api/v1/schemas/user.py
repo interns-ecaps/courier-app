@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, constr, Field
-
+import re
 
 # Enum for user roles
 class UserType(str, Enum):
