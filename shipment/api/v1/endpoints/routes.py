@@ -5,10 +5,15 @@ from shipment import views
 from fastapi import Request, Depends, Path
 from sqlalchemy.orm import Session
 from common.database import get_db
-from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage,FetchPackage, UpdatePackage
+from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage, CreateShipment,FetchPackage, UpdatePackage
 from typing import Optional, List
 shipment_router = APIRouter()
 
+# # ================================ SHIPMENT =====================================
+
+# @shipment_router.post("/create_shipment/")
+# def create_shipment(request: CreateShipment, db: Session = Depends(get_db)):
+#     return views.ShipmentService.create_shipment(request, db)
 
 # ================================ CURRENCY =====================================
 

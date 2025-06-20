@@ -39,6 +39,9 @@ class Currency(Base):
     __tablename__ = "currency"
     id = Column(Integer, primary_key=True, index=True)
     currency = Column(String(3), nullable=False)
+
+    is_deleted = Column(Boolean, default=False)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -60,7 +63,7 @@ class Package(Base):
    
     # is_negotiable = Column(SQLEnum(IsNegotiable), default=IsNegotiable.NO)
     is_negotiable = Column(Boolean, default=False)
-    is_delete = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False)
     
     # Pricing
     currency_id = Column(Integer, ForeignKey("currency.id"), nullable=False)
