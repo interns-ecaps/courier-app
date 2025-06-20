@@ -29,7 +29,8 @@ class PackageService:
         try:
             package_type_enum = PackageType(package_data.package_type)
         except ValueError:
-            raise Exception(f"Invalid package_type: {package_data.package_type}")
+            raise Exception(f"Invalid package_type: {package_data.package_type}") 
+        
         
         package_obj = Package(
             package_type=package_type_enum,
