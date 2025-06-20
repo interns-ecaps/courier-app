@@ -1,9 +1,16 @@
 from fastapi import HTTPException
 from shipment.api.v1.models.package import Currency, Package, PackageType
+from shipment.api.v1.models.status import  ShipmentStatus
 from shipment.api.v1.models.shipment import Shipment
-from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage, CreateShipment, UpdatePackage
+from shipment.api.v1.schemas.shipment import (
+    CreateCurrency,
+    CreatePackage,
+    CreateShipment,
+    UpdatePackage,
+)
 from sqlalchemy.orm import Session
 from typing import List, Optional
+
 
 class ShipmentService:
     def create_shipment(shipment_data: CreateShipment, db: Session):
@@ -12,7 +19,7 @@ class ShipmentService:
         db.commit()
         db.refresh(new_shipment)
         return new_shipment
-    
+
     def get_shipments(
         db: Session,
         package_type: Optional[str] = None,
@@ -38,12 +45,7 @@ class ShipmentService:
         total = query.count()
         results = query.offset((page - 1) * limit).limit(limit).all()
 
-        return {
-            "page": page,
-            "limit": limit,
-            "total": total,
-            "results": results
-        }
+        return {"page": page, "limit": limit, "total": total, "results": results}
 
 
 class CurrencyService:
@@ -67,12 +69,11 @@ class PackageService:
         if not currency:
             raise HTTPException(status_code=400, detail="Currency not found")
 
-
         try:
             package_type_enum = PackageType(package_data.package_type)
         except ValueError:
             raise Exception(f"Invalid package_type: {package_data.package_type}")
-        
+
         package_obj = Package(
             package_type=package_type_enum,
             weight=package_data.weight,
@@ -86,6 +87,7 @@ class PackageService:
         db.commit()
         db.refresh(package_obj)
         return package_obj
+
     @staticmethod
     def get_packages(
         db: Session,
@@ -112,26 +114,25 @@ class PackageService:
         total = query.count()
         results = query.offset((page - 1) * limit).limit(limit).all()
 
-        return {
-            "page": page,
-            "limit": limit,
-            "total": total,
-            "results": results
-        }
+        return {"page": page, "limit": limit, "total": total, "results": results}
 
     def get_package_by_id(package_id: int, db: Session):
-        package = db.query(Package).filter(Package.id == package_id).first()
+        package = (
+            db.query(Package)
+            .filter(Package.id == package_id, Package.is_deleted == False)
+            .first()
+        )
         if not package:
             raise HTTPException(status_code=404, detail="Package not found")
         return package
-        
+
     @staticmethod
     def disable_package(package_id: int, db: Session):
         package = db.query(Package).filter(Package.id == package_id).first()
 
         if not package:
             raise HTTPException(status_code=404, detail="Package not found")
-        
+
         if package.is_deleted:
             raise HTTPException(status_code=400, detail="Package is already deleted")
 
