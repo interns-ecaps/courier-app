@@ -50,6 +50,10 @@ def get_package_by_id(
 ):
     return views.PackageService.get_package_by_id(package_id, db)
 
+@shipment_router.patch("/disable_package/{package_id}")
+def disable_package(package_id: int, db: Session = Depends(get_db)):
+    return views.PackageService.disable_package(package_id, db)
+
 @shipment_router.patch("/update_package/{package_id}")
 def patch_user(
     package_id: int,

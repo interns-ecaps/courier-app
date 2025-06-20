@@ -85,7 +85,15 @@ class PackageService:
         if not package:
             raise HTTPException(status_code=404, detail="Package not found")
         return package
-    
+        
+    @staticmethod
+    def disable_package(package_id: int, db: Session):
+        package = db.query(Package).filter(Package.id == package_id).first()
+        if not package:
+            raise HTTPException(status_code=404, detail="Package not found.")
+
+        package.is_delete = True
+
     def update_package(package_id: int, package_data: UpdatePackage, db: Session):
         package = db.query(Package).filter(Package.id == package_id).first()
         # print(user, "::user")
