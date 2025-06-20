@@ -23,9 +23,9 @@ from sqlalchemy.ext.declarative import declarative_base
 
 # Base = declarative_base()
 
-class IsNegotiable(Enum):
-    NO = "no"
-    YES = "yes"
+# class IsNegotiable(Enum):
+#     NO = "no"
+#     YES = "yes"
 
 class PackageType(Enum):
     STACKABLE_GOODS = "stackable_goods"
@@ -60,6 +60,7 @@ class Package(Base):
    
     # is_negotiable = Column(SQLEnum(IsNegotiable), default=IsNegotiable.NO)
     is_negotiable = Column(Boolean, default=False)
+    is_delete = Column(Boolean, default=False)
     
     # Pricing
     currency_id = Column(Integer, ForeignKey("currency.id"), nullable=False)

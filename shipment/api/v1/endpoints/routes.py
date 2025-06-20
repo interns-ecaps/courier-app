@@ -1,12 +1,12 @@
 from fastapi import (
-    APIRouter,Depends, HTTPException,Query
+    APIRouter, Body, Depends, HTTPException,Query
 )
 from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage, FetchPackage, FetchCurrency
 from shipment import views
 from fastapi import Request, Depends, Path
 from sqlalchemy.orm import Session
 from common.database import get_db
-from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage,FetchPackage
+from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage,FetchPackage, UpdatePackage
 from typing import Optional, List
 shipment_router = APIRouter()
 
@@ -68,3 +68,16 @@ def get_currency_by_id(
     Fetch a single currency by ID.
     """
     return views.CurrencyService.get_currency_by_id(currency_id, db)
+
+@shipment_router.patch("/disable_package/{package_id}")
+def disable_package(package_id: int, db: Session = Depends(get_db)):
+    return views.PackageService.disable_package(package_id, db)
+
+@shipment_router.patch("/update_package/{package_id}")
+def patch_user(
+    package_id: int,
+    request: UpdatePackage = Body(...),  # <- ensures proper parsing of partial JSON
+    db: Session = Depends(get_db),
+):
+    print(request.dict(exclude_unset=False))
+    return views.PackageService.update_package(package_id, request, db)
