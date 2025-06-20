@@ -17,9 +17,9 @@ shipment_router = APIRouter()
 
 # # ================================ SHIPMENT =====================================
 
-# @shipment_router.post("/create_shipment/")
-# def create_shipment(request: CreateShipment, db: Session = Depends(get_db)):
-#     return views.ShipmentService.create_shipment(request, db)
+@shipment_router.post("/create_shipment/")
+def create_shipment(request: CreateShipment, db: Session = Depends(get_db)):
+    return views.ShipmentService.create_shipment(request, db)
 
 # ================================ CURRENCY =====================================
 

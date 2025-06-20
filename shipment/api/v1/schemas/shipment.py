@@ -10,24 +10,24 @@ import re
 
 from shipment.api.v1.models.shipment import ShipmentType 
 
-# class CreateShipment(BaseModel):
-#     sender_id = int
-#     sender_name = str
-#     sender_phone = str
-#     sender_email = str
-#     pickup_address = int
-#     recipient_id = int
-#     recipient_name = str
-#     recipient_phone = str
-#     recipient_email = str
-#     delivery_address = int
-#     courier_id = int
-#     shipment_type = ShipmentType
-#     package_id = int
-#     pickup_date = DateTime
-#     special_instructions = str
-#     insurance_required = bool
-#     signature_required = bool
+class CreateShipment(BaseModel):
+    sender_id = int
+    sender_name = str
+    sender_phone = str
+    sender_email = str
+    pickup_address = int
+    recipient_id = int
+    recipient_name = str
+    recipient_phone = str
+    recipient_email = str
+    delivery_address = int
+    courier_id = int
+    shipment_type = ShipmentType
+    package_id = int
+    pickup_date = DateTime
+    special_instructions = str
+    insurance_required = bool
+    signature_required = bool
 
 
 class CreateCurrency(BaseModel):

@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 from shipment.api.v1.models.package import Currency, Package, PackageType
+from shipment.api.v1.models.status import  ShipmentStatus
 from shipment.api.v1.models.shipment import Shipment
 from shipment.api.v1.schemas.shipment import (
     CreateCurrency,
@@ -28,27 +29,40 @@ from typing import List, Optional
 #     ):
 #         query = db.query(Package).filter(Package.is_deleted == False)
 
-#         if package_type:
-#             try:
-#                 query = query.filter(Package.package_type == PackageType(package_type))
-#             except ValueError:
-#                 raise HTTPException(status_code=400, detail="Invalid package_type")
+class ShipmentService:
+    def create_shipment(shipment_data: CreateShipment, db: Session):
+        new_shipment = Shipment(**shipment_data.dict())
+        db.add(new_shipment)
+        db.commit()
+        db.refresh(new_shipment)
+        return new_shipment
 
-#         if currency_id:
-#             query = query.filter(Package.currency_id == currency_id)
+    def get_shipments(
+        db: Session,
+        package_type: Optional[str] = None,
+        currency_id: Optional[int] = None,
+        is_negotiable: Optional[bool] = None,
+        page: int = 1,
+        limit: int = 10,
+    ):
+        query = db.query(Package).filter(Package.is_deleted == False)
 
-#         if is_negotiable is not None:
-#             query = query.filter(Package.is_negotiable == is_negotiable)
+        if package_type:
+            try:
+                query = query.filter(Package.package_type == PackageType(package_type))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid package_type")
 
-#         total = query.count()
-#         results = query.offset((page - 1) * limit).limit(limit).all()
+        if currency_id:
+            query = query.filter(Package.currency_id == currency_id)
 
-#         return {
-#             "page": page,
-#             "limit": limit,
-#             "total": total,
-#             "results": results
-#         }
+        if is_negotiable is not None:
+            query = query.filter(Package.is_negotiable == is_negotiable)
+
+        total = query.count()
+        results = query.offset((page - 1) * limit).limit(limit).all()
+
+        return {"page": page, "limit": limit, "total": total, "results": results}
 
 
 class CurrencyService:
@@ -120,7 +134,11 @@ class PackageService:
         return {"page": page, "limit": limit, "total": total, "results": results}
 
     def get_package_by_id(package_id: int, db: Session):
-        package = db.query(Package).filter(Package.id == package_id).first()
+        package = (
+            db.query(Package)
+            .filter(Package.id == package_id, Package.is_deleted == False)
+            .first()
+        )
         if not package:
             raise HTTPException(status_code=404, detail="Package not found")
         return package
