@@ -44,3 +44,48 @@ class PackageService:
         db.commit()
         db.refresh(package_obj)
         return package_obj
+
+
+from typing import List, Optional
+
+class PackageService:
+    # ...existing create_package...
+
+    @staticmethod
+    def get_packages(
+        db: Session,
+        package_type: Optional[str] = None,
+        currency_id: Optional[int] = None,
+        is_negotiable: Optional[bool] = None,
+        page: int = 1,
+        limit: int = 10,
+    ):
+        query = db.query(Package)
+
+        if package_type:
+            try:
+                query = query.filter(Package.package_type == PackageType(package_type))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid package_type")
+
+        if currency_id:
+            query = query.filter(Package.currency_id == currency_id)
+
+        if is_negotiable is not None:
+            query = query.filter(Package.is_negotiable == is_negotiable)
+
+        total = query.count()
+        results = query.offset((page - 1) * limit).limit(limit).all()
+
+        return {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "results": results
+        }
+
+    def get_package_by_id(package_id: int, db: Session):
+        package = db.query(Package).filter(Package.id == package_id).first()
+        if not package:
+            raise HTTPException(status_code=404, detail="Package not found")
+        return package
