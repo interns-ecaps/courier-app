@@ -60,6 +60,7 @@ class Package(Base):
    
     # is_negotiable = Column(SQLEnum(IsNegotiable), default=IsNegotiable.NO)
     is_negotiable = Column(Boolean, default=False)
+    is_delete = Column(Boolean, default=False)
     
     # Pricing
     currency_id = Column(Integer, ForeignKey("currency.id"), nullable=False)
