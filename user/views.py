@@ -195,3 +195,17 @@ class UserService:
         db.commit()
         db.refresh(user)
         return user
+from user.api.v1.models.address import Address
+from user.api.v1.schemas.user import CreateAddress
+from sqlalchemy.orm import Session
+
+
+class AddressService:
+    @staticmethod
+    def create_address(address_data: CreateAddress, db: Session):
+        address = Address(**address_data.dict())
+        db.add(address)
+        db.commit()
+        db.refresh(address)
+        return address
+    

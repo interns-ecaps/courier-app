@@ -1,6 +1,9 @@
 from datetime import datetime
 from enum import Enum
 from typing import Optional
+from pydantic import BaseModel
+
+
 
 from pydantic import BaseModel, EmailStr, constr, Field
 import re
@@ -97,3 +100,25 @@ class SignUpRequest(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+
+class CreateAddress(BaseModel):
+    user_id: int
+    label: Optional[str] = None
+    street_address: str
+    city: str
+    state: str
+    postal_code: str
+    country_code: int
+    landmark: Optional[str] = None
+    latitude: Optional[Decimal] = None
+    longitude: Optional[Decimal] = None
+    is_default: Optional[bool] = False
+
+    class Config:
+        orm_mode = True
+
+
+class FetchAddress(CreateAddress):
+    id: int

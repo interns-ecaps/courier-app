@@ -5,13 +5,15 @@ from sqlalchemy.orm import Session
 from common.database import get_db
 from shipment.api.v1.endpoints import routes
 from user import views
-from user.views import UserService, signup_user
+from user.views import AddressService, UserService, signup_user
 from user.api.v1.utils.auth import get_current_user
 
 
 from shipment import views
 from user.api.v1.schemas.user import (
+    CreateAddress,
     CreateUser,
+    FetchAddress,
     FetchUser,
     ReplaceUser,
     UpdateUser,
@@ -92,4 +94,10 @@ def replace_user(user_id: int, request: ReplaceUser, db: Session = Depends(get_d
 
 @user_router.patch("/disable_user/{user_id}")
 def disable_user(user_id: int, db: Session = Depends(get_db)):
-    return UserService.disable_user(user_id, db)
+    return UserService.disable_user(user_id, db) 
+
+
+@user_router.post("/addresses/", response_model=FetchAddress, status_code=201)
+def create_address(address: CreateAddress, db: Session = Depends(get_db)):
+    return AddressService.create_address(address, db)
+
