@@ -2,6 +2,16 @@
 
 from pydantic import BaseModel
 from enum import Enum
+from pydantic_settings import BaseSettings
+from common.config import settings  # or wherever your config.py is
+
+class Settings(BaseSettings):
+    db_name: str
+    db_port: int
+    secret_key: str
+
+class Config:
+        env_file = ".env"
 class CreateCurrency(BaseModel):
     currency : str
 
@@ -36,5 +46,15 @@ class FetchPackage(BaseModel):
     is_negotiable: bool
     currency_id: int
 
-    class Config:
+class Config:
         orm_mode = True
+
+from pydantic import BaseModel
+
+class FetchCurrency(BaseModel):
+    id: int
+    currency: str
+
+class Config:
+    orm_mode = True
+
