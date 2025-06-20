@@ -2,6 +2,8 @@ from fastapi import HTTPException
 from shipment.api.v1.models.package import Currency, Package, PackageType
 from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage
 from sqlalchemy.orm import Session
+from typing import List, Optional
+
 
 
 class CurrencyService:
@@ -44,13 +46,6 @@ class PackageService:
         db.commit()
         db.refresh(package_obj)
         return package_obj
-
-
-from typing import List, Optional
-
-class PackageService:
-    # ...existing create_package...
-
     @staticmethod
     def get_packages(
         db: Session,
