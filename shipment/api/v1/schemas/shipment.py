@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel
 from enum import Enum
+from shipment.api.v1.models.package import PackageType
+
 class CreateCurrency(BaseModel):
     currency : str
 
@@ -18,17 +20,17 @@ class CreatePackage(BaseModel):
         orm_mode = True
 
 
-class PackageTypeEnum(str, Enum):
-    BOX = "box"
-    ENVELOPE = "envelope"
-    PALLET = "pallet"
-    STACKABLE_GOODS = "stackable_goods"  # ✅ Add this line
-    NON_STACKABLE_GOODS = "non_stackable_goods"
+# class PackageTypeEnum(str, Enum):
+#     BOX = "box"
+#     ENVELOPE = "envelope"
+#     PALLET = "pallet"
+#     STACKABLE_GOODS = "stackable_goods"  # ✅ Add this line
+#     NON_STACKABLE_GOODS = "non_stackable_goods"
 
 
 class FetchPackage(BaseModel):
     id: int
-    package_type: PackageTypeEnum  # ✅ Use the updated enum here
+    package_type: PackageType  # ✅ Use the updated enum here
     weight: float
     length: float
     width: float
