@@ -2,6 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 from pydantic import BaseModel
+from decimal import Decimal
 
 
 
@@ -102,23 +103,40 @@ class SignUpRequest(BaseModel):
         orm_mode = True
 
 
-
+#-----------addresses--------------#
 class CreateAddress(BaseModel):
     user_id: int
-    label: Optional[str] = None
+    label: Optional[str]
     street_address: str
     city: str
     state: str
     postal_code: str
     country_code: int
     landmark: Optional[str] = None
-    latitude: Optional[Decimal] = None
-    longitude: Optional[Decimal] = None
-    is_default: Optional[bool] = False
+    latitude: float
+    longitude: float
+    is_default: bool = False
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
+
+    
 
 
 class FetchAddress(CreateAddress):
     id: int
+
+#-----------country--------------#
+class CreateCountry(BaseModel):
+    # id: int
+    name: str
+
+    model_config = {
+        "from_attributes": True
+    }
+
+
+class FetchCountry(CreateCountry):
+    created_at: Optional[str]
+    updated_at: Optional[str]

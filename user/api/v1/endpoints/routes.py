@@ -1,19 +1,26 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Body, Query
+from typing import List
+from fastapi import APIRouter, Depends, Form, HTTPException, Body, Path, Query
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from common.database import get_db
 from shipment.api.v1.endpoints import routes
 from user import views
-from user.views import AddressService, UserService, signup_user
+from user.views import CountryService, UserService, signup_user  # ✅ removed create_address
+from user.views import AddressService  # ✅ imported from correct file
+
 from user.api.v1.utils.auth import get_current_user
+from user.views import AddressService
+
 
 
 from shipment import views
 from user.api.v1.schemas.user import (
     CreateAddress,
+    CreateCountry,
     CreateUser,
     FetchAddress,
+    FetchCountry,
     FetchUser,
     ReplaceUser,
     UpdateUser,
@@ -98,6 +105,20 @@ def disable_user(user_id: int, db: Session = Depends(get_db)):
 
 
 @user_router.post("/addresses/", response_model=FetchAddress, status_code=201)
-def create_address(address: CreateAddress, db: Session = Depends(get_db)):
-    return AddressService.create_address(address, db)
+def create_address_route(payload: CreateAddress, db: Session = Depends(get_db)):
+    return AddressService.create_address(payload, db)
+
+
+#country
+@user_router.post("/countries/")
+def create_country(country: CreateCountry, db: Session = Depends(get_db)):
+    return CountryService.create_country(country, db)
+
+@user_router.get("/countries/", response_model=List[FetchCountry])
+def get_all_countries(db: Session = Depends(get_db)):
+    return CountryService.get_all_countries(db)
+
+@user_router.get("/countries/{country_id}", response_model=FetchCountry)
+def get_country_by_id(country_id: int = Path(...), db: Session = Depends(get_db)):
+    return CountryService.get_country_by_id(country_id, db)
 

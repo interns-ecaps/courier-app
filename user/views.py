@@ -12,7 +12,12 @@ from common.config import settings
 
 from user.api.v1.utils.auth import create_access_token, create_refresh_token
 from user.api.v1.models.users import User
-from user.api.v1.schemas.user import CreateUser, SignUpRequest, UpdateUser
+from user.api.v1.schemas.user import CreateCountry, CreateUser, SignUpRequest, UpdateUser
+from user.api.v1.models.address import Address
+from user.api.v1.models.address import Country
+from user.api.v1.schemas.user import CreateAddress
+from sqlalchemy.orm import Session
+from fastapi import HTTPException
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -195,17 +200,70 @@ class UserService:
         db.commit()
         db.refresh(user)
         return user
-from user.api.v1.models.address import Address
+from user.api.v1.models.address import Address, Country
 from user.api.v1.schemas.user import CreateAddress
 from sqlalchemy.orm import Session
+
+
+
+
+# user/views/address_service.py or similar
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+from user.api.v1.models.address import Address
+from user.api.v1.models.address import Country
+from user.api.v1.schemas.user import CreateAddress  # 👈 import your schema
 
 
 class AddressService:
     @staticmethod
     def create_address(address_data: CreateAddress, db: Session):
-        address = Address(**address_data.dict())
+    
+        country = db.query(Country).filter(Country.id == address_data.country_code).first()
+        if not country:
+            raise HTTPException(status_code=404, detail="Country not found")
+
+        address = Address(
+        user_id=address_data.user_id,
+        label=address_data.label,
+        street_address=address_data.street_address,
+        city=address_data.city,
+        state=address_data.state,
+        postal_code=address_data.postal_code,
+        landmark=address_data.landmark,
+        latitude=address_data.latitude,
+        longitude=address_data.longitude,
+        is_default=address_data.is_default,
+        country=country  # 👈 assign full object here
+    )
+
         db.add(address)
         db.commit()
         db.refresh(address)
         return address
+
+
+
     
+class CountryService:
+    @staticmethod
+    def create_country(country_data: CreateCountry, db: Session):
+        existing = db.query(Country).filter(Country.name == country_data.name).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Country already exists")
+        country = Country(**country_data.dict())
+        db.add(country)
+        db.commit()
+        db.refresh(country)
+        return country
+
+    @staticmethod
+    def get_all_countries(db: Session):
+        return db.query(Country).all()
+
+    @staticmethod
+    def get_country_by_id(country_id: int, db: Session):
+        country = db.query(Country).filter(Country.id == country_id).first()
+        if not country:
+            raise HTTPException(status_code=404, detail="Country not found")
+        return country
