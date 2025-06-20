@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 from shipment.api.v1.models.package import Currency, Package, PackageType
+from shipment.api.v1.models.shipment import Shipment
 from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage
 from sqlalchemy.orm import Session
 from typing import List, Optional
