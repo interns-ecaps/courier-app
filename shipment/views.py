@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 from shipment.api.v1.models.package import Currency, Package, PackageType
+from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage, UpdatePackage
 from shipment.api.v1.models.shipment import Shipment
 from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage
 from sqlalchemy.orm import Session
@@ -72,7 +73,7 @@ class PackageService:
         page: int = 1,
         limit: int = 10,
     ):
-        query = db.query(Package)
+        query = db.query(Package).filter(Package.is_delete == False)
 
         if package_type:
             try:
@@ -100,6 +101,49 @@ class PackageService:
         package = db.query(Package).filter(Package.id == package_id).first()
         if not package:
             raise HTTPException(status_code=404, detail="Package not found")
+        return package
+        
+    @staticmethod
+    def disable_package(package_id: int, db: Session):
+        package = db.query(Package).filter(Package.id == package_id).first()
+
+        if not package:
+            raise HTTPException(status_code=404, detail="Package not found")
+        
+        if package.is_delete:
+            raise HTTPException(status_code=400, detail="Package is already deleted")
+
+        package.is_delete = True
+
+        try:
+            db.commit()
+            db.refresh(package)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=500, detail=f"Error while deleting package: {str(e)}"
+            )
+
+        return package
+
+    def update_package(package_id: int, package_data: UpdatePackage, db: Session):
+        package = db.query(Package).filter(Package.id == package_id).first()
+        # print(user, "::user")
+
+        if not package:
+            raise HTTPException(status_code=404, detail="Package not found.")
+
+        for field, value in package_data.dict(exclude_unset=True).items():
+            setattr(package, field, value)
+
+        try:
+            db.commit()
+            db.refresh(package)  # optional — to return the updated version
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=500, detail=f"Error while updating package: {str(e)}"
+            )
         return package
     
     
