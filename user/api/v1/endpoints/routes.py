@@ -5,20 +5,18 @@ from sqlalchemy.orm import Session
 from common.database import get_db
 from shipment.api.v1.endpoints import routes
 from user import views
-from user.views import UserService, login_user
+from user.views import UserService, signup_user
 from user.api.v1.utils.auth import get_current_user
 
-# from user.views import SignUpRequest
-from user.views import signup_user
-from user.api.v1.schemas.user import SignUpRequest
 
-
-from user.views import get_db  # this can be a no-op temporarily
 from shipment import views
-from user.api.v1.schemas.user import CreateUser, FetchUser, ReplaceUser, UpdateUser
-from user import views
-from sqlalchemy.orm import Session
-from common.database import get_db
+from user.api.v1.schemas.user import (
+    CreateUser,
+    FetchUser,
+    ReplaceUser,
+    UpdateUser,
+    SignUpRequest,
+)
 
 
 user_router = APIRouter()
@@ -90,6 +88,7 @@ def patch_user(
 @user_router.put("/replace_user/{user_id}")
 def replace_user(user_id: int, request: ReplaceUser, db: Session = Depends(get_db)):
     return UserService.replace_user(user_id, request, db)
+
 
 @user_router.patch("/disable_user/{user_id}")
 def disable_user(user_id: int, db: Session = Depends(get_db)):
