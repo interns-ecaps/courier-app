@@ -25,6 +25,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from shipment.api.v1.models.payment import PaymentStatus
 
 # Base = declarative_base()
+import ulid
+
+
 
 
 class ShipmentType(str, Enum):
@@ -38,8 +41,13 @@ class Shipment(Base):
     __tablename__ = "shipments"
 
     id = Column(Integer, primary_key=True, index=True)
-    tracking_number = Column(String(50), unique=True, index=True, nullable=False)
-
+    tracking_number = Column(
+    String(40),
+    unique=True,
+    index=True,
+    nullable=False,
+    default=lambda: f"SHPMNT_{ulid.new()}"
+)
     # Sender info
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     sender_name = Column(String(100), nullable=False)
@@ -79,7 +87,7 @@ class Shipment(Base):
     # payment_id = Column(Integer, ForeignKey("payments.id"), nullable=False)
     # payment_status = Column(String(100), ForeignKey("payments.payment_status"))
     
-
+    is_deleted = Column(Boolean, default=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

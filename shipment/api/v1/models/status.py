@@ -37,10 +37,10 @@ class StatusTracker(Base):
 
     package_id = Column(Integer, ForeignKey("packages.id"), nullable=False)
     status = Column(SQLEnum(ShipmentStatus), default=ShipmentStatus.PENDING)
-    current_location = Column(Integer, ForeignKey("addresses.id"), nullable=False)
+    current_location = Column(String(255), nullable=True)
     is_delivered = Column(Boolean, default=False)
 
-    
+    is_deleted = Column(Boolean, default=False)    
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

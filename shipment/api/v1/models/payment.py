@@ -42,6 +42,8 @@ class Payment(Base):
     payment_method = Column(SQLEnum(PaymentMethod), default=PaymentMethod.CASH)
     payment_status = Column(SQLEnum(PaymentStatus), default=PaymentStatus.PENDING)
     payment_date = Column(DateTime(timezone=True))
+
+    is_deleted = Column(Boolean, default=False)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
