@@ -55,7 +55,7 @@ class PackageService:
         page: int = 1,
         limit: int = 10,
     ):
-        query = db.query(Package).filter(Package.is_deleted == False)
+        query = db.query(Package).filter(Package.is_delete == False)
 
         if package_type:
             try:
@@ -92,7 +92,7 @@ class PackageService:
         if not package:
             raise HTTPException(status_code=404, detail="Package not found")
         
-        if package.is_deleted:
+        if package.is_delete:
             raise HTTPException(status_code=400, detail="Package is already deleted")
 
         package.is_delete = True
