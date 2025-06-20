@@ -55,8 +55,7 @@ class PackageService:
         page: int = 1,
         limit: int = 10,
     ):
-        query = db.query(Package)
-        query = query.filter(Package.is_deleted == False)
+        query = db.query(Package).filter(Package.is_deleted == False)
 
         if package_type:
             try:
@@ -89,10 +88,25 @@ class PackageService:
     @staticmethod
     def disable_package(package_id: int, db: Session):
         package = db.query(Package).filter(Package.id == package_id).first()
+
         if not package:
-            raise HTTPException(status_code=404, detail="Package not found.")
+            raise HTTPException(status_code=404, detail="Package not found")
+        
+        if package.is_deleted:
+            raise HTTPException(status_code=400, detail="Package is already deleted")
 
         package.is_delete = True
+
+        try:
+            db.commit()
+            db.refresh(package)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=500, detail=f"Error while deleting package: {str(e)}"
+            )
+
+        return package
 
     def update_package(package_id: int, package_data: UpdatePackage, db: Session):
         package = db.query(Package).filter(Package.id == package_id).first()
@@ -104,6 +118,12 @@ class PackageService:
         for field, value in package_data.dict(exclude_unset=True).items():
             setattr(package, field, value)
 
-        db.commit()
-        db.refresh(package)
+        try:
+            db.commit()
+            db.refresh(package)  # optional — to return the updated version
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=500, detail=f"Error while updating package: {str(e)}"
+            )
         return package
