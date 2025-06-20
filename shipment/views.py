@@ -1,12 +1,9 @@
 from fastapi import HTTPException
 from shipment.api.v1.models.package import Currency, Package, PackageType
-from shipment.api.v1.schemas.shipment import (
-    CreateCurrency,
-    CreatePackage,
-    UpdatePackage,
-)
+from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage, UpdatePackage
 from sqlalchemy.orm import Session
 from typing import List, Optional
+
 
 
 class CurrencyService:
@@ -30,11 +27,12 @@ class PackageService:
         if not currency:
             raise HTTPException(status_code=400, detail="Currency not found")
 
+
         try:
             package_type_enum = PackageType(package_data.package_type)
         except ValueError:
             raise Exception(f"Invalid package_type: {package_data.package_type}")
-
+        
         package_obj = Package(
             package_type=package_type_enum,
             weight=package_data.weight,
@@ -48,7 +46,6 @@ class PackageService:
         db.commit()
         db.refresh(package_obj)
         return package_obj
-
     @staticmethod
     def get_packages(
         db: Session,
@@ -59,6 +56,7 @@ class PackageService:
         limit: int = 10,
     ):
         query = db.query(Package)
+        query = query.filter(Package.is_deleted == False)
 
         if package_type:
             try:
@@ -75,14 +73,19 @@ class PackageService:
         total = query.count()
         results = query.offset((page - 1) * limit).limit(limit).all()
 
-        return {"page": page, "limit": limit, "total": total, "results": results}
+        return {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "results": results
+        }
 
     def get_package_by_id(package_id: int, db: Session):
         package = db.query(Package).filter(Package.id == package_id).first()
         if not package:
             raise HTTPException(status_code=404, detail="Package not found")
         return package
-
+    
     def update_package(package_id: int, package_data: UpdatePackage, db: Session):
         package = db.query(Package).filter(Package.id == package_id).first()
         # print(user, "::user")
