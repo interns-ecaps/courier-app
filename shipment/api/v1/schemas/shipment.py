@@ -3,6 +3,16 @@
 from datetime import datetime
 from pydantic import BaseModel, Field, constr, EmailStr
 from enum import Enum
+from pydantic_settings import BaseSettings
+from common.config import settings  # or wherever your config.py is
+
+class Settings(BaseSettings):
+    db_name: str
+    db_port: int
+    secret_key: str
+
+class Config:
+        env_file = ".env"
 
 from sqlalchemy import DateTime
 from shipment.api.v1.models.package import PackageType
@@ -72,6 +82,18 @@ class FetchPackage(BaseModel):
 
     class Config:
         from_attributes = True
+class Config:
+        orm_mode = True
+
+from pydantic import BaseModel
+
+class FetchCurrency(BaseModel):
+    id: int
+    currency: str
+
+class Config:
+    orm_mode = True
+
 
 
 class UpdatePackage(BaseModel):
@@ -88,3 +110,4 @@ class UpdatePackage(BaseModel):
 
     class Config:
         from_attributes = True
+        orm_mode = True

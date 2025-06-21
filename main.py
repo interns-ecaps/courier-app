@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from shipment.api.v1.endpoints import api_router as shipment_router
 from user.api.v1.endpoints import api_router as user_router
 
+
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,

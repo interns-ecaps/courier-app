@@ -164,6 +164,31 @@ class PackageService:
         if not package:
             raise HTTPException(status_code=404, detail="Package not found")
         return package
+    
+class CurrencyService:
+    @staticmethod
+    def create_currency(currency_data: CreateCurrency, db: Session):
+        if not currency_data.currency:
+            raise HTTPException(status_code=400, detail="Currency is required")
+
+        currency_obj = Currency(currency=currency_data.currency)
+        db.add(currency_obj)
+        db.commit()
+        db.refresh(currency_obj)
+        return currency_obj
+
+    @staticmethod
+    def get_currencies(db: Session):
+        return db.query(Currency).all()
+
+    @staticmethod
+    def get_currency_by_id(currency_id: int, db: Session):
+        currency = db.query(Currency).filter(Currency.id == currency_id).first()
+        if not currency:
+            raise HTTPException(status_code=404, detail="Currency not found")
+        return currency
+
+        
 
     @staticmethod
     def disable_package(package_id: int, db: Session):

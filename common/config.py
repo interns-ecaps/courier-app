@@ -3,6 +3,7 @@
 from pydantic_settings import BaseSettings
 from pydantic import BaseModel
 
+
 class Settings(BaseSettings):
     environment: str
     db_user: str

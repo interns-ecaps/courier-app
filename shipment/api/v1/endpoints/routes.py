@@ -1,6 +1,7 @@
 from fastapi import (
     APIRouter, Body, Depends, HTTPException,Query
 )
+from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage, FetchPackage, FetchCurrency
 from shipment import views
 from fastapi import Request, Depends, Path
 from sqlalchemy.orm import Session
@@ -54,6 +55,24 @@ def get_package_by_id(
     db: Session = Depends(get_db),
 ):
     return views.PackageService.get_package_by_id(package_id, db)
+#fetch currency
+@shipment_router.get("/currencies/", response_model=List[FetchCurrency])
+def get_currencies(db: Session = Depends(get_db)):
+    """
+    Fetch all currencies.
+    """
+    return views.CurrencyService.get_currencies(db)
+
+
+@shipment_router.get("/currencies/{currency_id}", response_model=FetchCurrency)
+def get_currency_by_id(
+    currency_id: int = Path(..., description="The ID of the currency to retrieve"),
+    db: Session = Depends(get_db),
+):
+    """
+    Fetch a single currency by ID.
+    """
+    return views.CurrencyService.get_currency_by_id(currency_id, db)
 
 @shipment_router.patch("/disable_package/{package_id}")
 def disable_package(package_id: int, db: Session = Depends(get_db)):

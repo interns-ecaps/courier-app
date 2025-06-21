@@ -1,6 +1,10 @@
 from datetime import datetime
 from enum import Enum
 from typing import Optional
+from pydantic import BaseModel
+from decimal import Decimal
+
+
 
 from pydantic import BaseModel, EmailStr, constr, Field
 import re
@@ -97,3 +101,42 @@ class SignUpRequest(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+#-----------addresses--------------#
+class CreateAddress(BaseModel):
+    user_id: int
+    label: Optional[str]
+    street_address: str
+    city: str
+    state: str
+    postal_code: str
+    country_code: int
+    landmark: Optional[str] = None
+    latitude: float
+    longitude: float
+    is_default: bool = False
+
+    model_config = {
+        "from_attributes": True
+    }
+
+    
+
+
+class FetchAddress(CreateAddress):
+    id: int
+
+#-----------country--------------#
+class CreateCountry(BaseModel):
+    # id: int
+    name: str
+
+    model_config = {
+        "from_attributes": True
+    }
+
+
+class FetchCountry(CreateCountry):
+    created_at: Optional[str]
+    updated_at: Optional[str]
