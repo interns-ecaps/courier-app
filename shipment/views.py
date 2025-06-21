@@ -11,9 +11,48 @@ from shipment.api.v1.schemas.shipment import (
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
+from user.api.v1.models.users import User
+
 
 class ShipmentService:
     def create_shipment(shipment_data: CreateShipment, db: Session):
+        sender = (
+            db.query(User).filter(User.id == shipment_data.currency_id).first()
+        )
+        if not sender:
+            raise HTTPException(status_code=400, detail="Sender not found")
+        
+        sender_address = (
+            db.query(User).filter(User.id == shipment_data.currency_id).first()
+        )
+        if not sender:
+            raise HTTPException(status_code=400, detail="Sender not found")
+        
+        sender = (
+            db.query(User).filter(User.id == shipment_data.currency_id).first()
+        )
+        if not sender:
+            raise HTTPException(status_code=400, detail="Sender not found")
+        
+        sender = (
+            db.query(User).filter(User.id == shipment_data.currency_id).first()
+        )
+        if not sender:
+            raise HTTPException(status_code=400, detail="Sender not found")
+        
+        sender = (
+            db.query(User).filter(User.id == shipment_data.currency_id).first()
+        )
+        if not sender:
+            raise HTTPException(status_code=400, detail="Sender not found")
+        
+        sender = (
+            db.query(User).filter(User.id == shipment_data.currency_id).first()
+        )
+        if not sender:
+            raise HTTPException(status_code=400, detail="Sender not found")
+        
+
         new_shipment = Shipment(**shipment_data.dict())
         db.add(new_shipment)
         db.commit()

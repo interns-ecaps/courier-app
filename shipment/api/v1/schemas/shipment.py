@@ -1,5 +1,6 @@
 
 
+from datetime import datetime
 from pydantic import BaseModel, Field, constr, EmailStr
 from enum import Enum
 
@@ -11,23 +12,26 @@ import re
 from shipment.api.v1.models.shipment import ShipmentType 
 
 class CreateShipment(BaseModel):
-    sender_id = int
-    sender_name = str
-    sender_phone = str
-    sender_email = str
-    pickup_address = int
-    recipient_id = int
-    recipient_name = str
-    recipient_phone = str
-    recipient_email = str
-    delivery_address = int
-    courier_id = int
-    shipment_type = ShipmentType
-    package_id = int
-    pickup_date = DateTime
-    special_instructions = str
-    insurance_required = bool
-    signature_required = bool
+    sender_id : int
+    sender_name: str
+    sender_phone : str
+    sender_email : str
+    pickup_address : int
+    recipient_id : int
+    recipient_name : str
+    recipient_phone : str
+    recipient_email : str
+    delivery_address : int
+    courier_id : int
+    shipment_type : ShipmentType
+    package_id : int
+    pickup_date : datetime
+    special_instructions : str
+    insurance_required : bool
+    signature_required : bool
+
+    class Config:
+        from_attributes = True
 
 
 class CreateCurrency(BaseModel):
@@ -45,7 +49,7 @@ class CreatePackage(BaseModel):
     final_cost : Optional[float] = Field(None)
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # class PackageTypeEnum(str, Enum):
@@ -67,7 +71,7 @@ class FetchPackage(BaseModel):
     currency_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class UpdatePackage(BaseModel):
@@ -83,4 +87,4 @@ class UpdatePackage(BaseModel):
 
 
     class Config:
-        orm_mode = True
+        from_attributes = True
