@@ -63,6 +63,11 @@ def patch_package(
     return views.PackageService.update_package(shipment_id, request, db)
 
 
+@shipment_router.patch("/delete_shipment/{shipment_id}")
+def delete_shipment(shipment_id: int, db: Session = Depends(get_db)):
+    return views.ShipmentService.delete_shipment(shipment_id, db)
+
+
 
 # =============================== PACKAGE =======================================
 
