@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     db_pass: str
     db_host: str
     db_name: str
-    db_port: str
+    db_port: int
     # JWT
     secret_key: str
     algorithm: str = "HS256"

@@ -26,7 +26,7 @@ class SignUpUser(BaseModel):
     user_type: UserType
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Input for internal user creation (password already hashed)
@@ -39,7 +39,7 @@ class CreateUser(BaseModel):
     user_type: UserType
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # # Partial update schema (used with PATCH)
@@ -52,7 +52,7 @@ class UpdateUser(BaseModel):
     user_type: Optional[str] = Field(None)
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # # Full user update schema (used with PUT)
@@ -73,7 +73,7 @@ class FetchUser(BaseModel):
     updated_at: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # replace
@@ -84,7 +84,7 @@ class ReplaceUser(CreateUser):
 #     is_active: bool
 
 #     class Config:
-#         orm_mode = True
+#         from_attributes = True
 
 
 from pydantic import BaseModel, EmailStr, Field
@@ -100,7 +100,7 @@ class SignUpRequest(BaseModel):
     user_type: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 #-----------addresses--------------#
