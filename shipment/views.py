@@ -1,7 +1,8 @@
+from email.headerregistry import Address
 from fastapi import HTTPException
 from shipment.api.v1.models.package import Currency, Package, PackageType
 from shipment.api.v1.models.status import  ShipmentStatus
-from shipment.api.v1.models.shipment import Shipment
+from shipment.api.v1.models.shipment import Shipment, ShipmentType
 from shipment.api.v1.schemas.shipment import (
     CreateCurrency,
     CreatePackage,
@@ -16,42 +17,55 @@ from user.api.v1.models.users import User
 
 class ShipmentService:
     def create_shipment(shipment_data: CreateShipment, db: Session):
-        sender = (
-            db.query(User).filter(User.id == shipment_data.currency_id).first()
-        )
+        # Validate sender
+        sender = db.query(User).filter(User.id == shipment_data.sender_id).first()
         if not sender:
             raise HTTPException(status_code=400, detail="Sender not found")
-        
-        sender_address = (
-            db.query(User).filter(User.id == shipment_data.currency_id).first()
+    
+        # Validate pickup address ownership
+        pickup_address = db.query(Address).filter(Address.id == shipment_data.pickup_address).first()
+        if not pickup_address or pickup_address.user_id != shipment_data.sender_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Pickup address does not belong to the sender or does not exist"
+            )
+
+        # Validate recipient
+        recipient = db.query(User).filter(User.id == shipment_data.recipient_id).first()
+        if not recipient:
+            raise HTTPException(status_code=400, detail="Recipient not found")
+
+        # Validate delivery address ownership
+        delivery_address = db.query(Address).filter(Address.id == shipment_data.delivery_address).first()
+        if not delivery_address or delivery_address.user_id != shipment_data.recipient_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Delivery address does not belong to the recipient or does not exist"
+            )
+            
+        supplier = (
+            db.query(User).filter(User.id == shipment_data.recipient_id).first()
         )
-        if not sender:
-            raise HTTPException(status_code=400, detail="Sender not found")
+        if not supplier:
+            raise HTTPException(status_code=400, detail="Recipient not found")
         
-        sender = (
-            db.query(User).filter(User.id == shipment_data.currency_id).first()
-        )
-        if not sender:
-            raise HTTPException(status_code=400, detail="Sender not found")
+        # Validate shipment type
+        try:
+            shipment_type = ShipmentType(shipment_data.shipment_type)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid shipment type: {shipment_data.shipment_type}"
+            )
         
-        sender = (
-            db.query(User).filter(User.id == shipment_data.currency_id).first()
-        )
-        if not sender:
-            raise HTTPException(status_code=400, detail="Sender not found")
-        
-        sender = (
-            db.query(User).filter(User.id == shipment_data.currency_id).first()
-        )
-        if not sender:
-            raise HTTPException(status_code=400, detail="Sender not found")
-        
-        sender = (
-            db.query(User).filter(User.id == shipment_data.currency_id).first()
-        )
-        if not sender:
-            raise HTTPException(status_code=400, detail="Sender not found")
-        
+        courier = db.query(User).filter(User.id == shipment_data.courier_id).first()
+        if not courier:
+            raise HTTPException(status_code=400, detail="Courier not found")
+
+        # Validate package
+        package = db.query(Package).filter(Package.id == shipment_data.package_id).first()
+        if not package:
+            raise HTTPException(status_code=400, detail="Package not found")
 
         new_shipment = Shipment(**shipment_data.dict())
         db.add(new_shipment)

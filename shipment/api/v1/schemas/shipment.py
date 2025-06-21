@@ -1,63 +1,54 @@
-
-
 from datetime import datetime
 from pydantic import BaseModel, Field, constr, EmailStr
 from enum import Enum
 from pydantic_settings import BaseSettings
-from common.config import settings  # or wherever your config.py is
-
-class Settings(BaseSettings):
-    db_name: str
-    db_port: int
-    secret_key: str
-
-class Config:
-        env_file = ".env"
-
+from common.config import settings
 from sqlalchemy import DateTime
 from shipment.api.v1.models.package import PackageType
 from typing import Optional
 import re
 
-from shipment.api.v1.models.shipment import ShipmentType 
+from shipment.api.v1.models.shipment import ShipmentType
+
 
 class CreateShipment(BaseModel):
-    sender_id : int
+    sender_id: int
     sender_name: str
-    sender_phone : str
-    sender_email : str
-    pickup_address : int
-    recipient_id : int
-    recipient_name : str
-    recipient_phone : str
-    recipient_email : str
-    delivery_address : int
-    courier_id : int
-    shipment_type : ShipmentType
-    package_id : int
-    pickup_date : datetime
-    special_instructions : str
-    insurance_required : bool
-    signature_required : bool
+    sender_phone: str
+    sender_email: str
+    pickup_address_id: int
+    recipient_id: int
+    recipient_name: str
+    recipient_phone: str
+    recipient_email: str
+    delivery_address_id: int
+    courier_id: int
+    shipment_type: ShipmentType
+    package_id: int
+    pickup_date: datetime
+    special_instructions: str
+    insurance_required: bool
+    signature_required: bool
 
     class Config:
         from_attributes = True
 
 
 class CreateCurrency(BaseModel):
-    currency : str
+    currency: str
+
 
 class CreatePackage(BaseModel):
-    package_type : str
-    weight : float
-    length : float
-    width : float
-    height : float
-    is_negotiable : bool
-    currency_id : int
-    estimated_cost : Optional[float] = Field(None)
-    final_cost : Optional[float] = Field(None)
-    
+    package_type: str
+    weight: float
+    length: float
+    width: float
+    height: float
+    is_negotiable: bool
+    currency_id: int
+    estimated_cost: Optional[float] = Field(None)
+    final_cost: Optional[float] = Field(None)
+
     class Config:
         from_attributes = True
 
@@ -82,18 +73,17 @@ class FetchPackage(BaseModel):
 
     class Config:
         from_attributes = True
-class Config:
-        orm_mode = True
+
 
 from pydantic import BaseModel
+
 
 class FetchCurrency(BaseModel):
     id: int
     currency: str
 
-class Config:
-    orm_mode = True
-
+    class Config:
+        from_attributes = True
 
 
 class UpdatePackage(BaseModel):
@@ -107,7 +97,5 @@ class UpdatePackage(BaseModel):
     estimated_cost: Optional[float] = Field(None)
     final_cost: Optional[float] = Field(None)
 
-
     class Config:
         from_attributes = True
-        orm_mode = True
