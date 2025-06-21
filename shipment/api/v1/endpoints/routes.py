@@ -11,6 +11,7 @@ from shipment.api.v1.schemas.shipment import (
     UpdatePackage,
     FetchPackage,
     FetchCurrency,
+    UpdateShipment,
 )
 
 shipment_router = APIRouter()
@@ -50,6 +51,22 @@ def get_shipment_by_id(
     db: Session = Depends(get_db),
 ):
     return views.ShipmentService.get_shipment_by_id(shipment_id=shipment_id, db=db)
+
+
+@shipment_router.patch("/update_shipment/{shipment_id}")
+def patch_package(
+    shipment_id: int,
+    request: UpdateShipment = Body(...),
+    db: Session = Depends(get_db),
+):
+    print(request.dict(exclude_unset=False))
+    return views.PackageService.update_package(shipment_id, request, db)
+
+
+@shipment_router.patch("/delete_shipment/{shipment_id}")
+def delete_shipment(shipment_id: int, db: Session = Depends(get_db)):
+    return views.ShipmentService.delete_shipment(shipment_id, db)
+
 
 
 # =============================== PACKAGE =======================================
