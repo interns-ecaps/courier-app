@@ -116,7 +116,8 @@ class FetchPayment(BaseModel):
     payment_method: PaymentMethod
     payment_status: PaymentStatus
     payment_date: datetime
-    from_attributes = True
+    class Config:
+     from_attributes = True
 
 
 class UpdatePackage(BaseModel):
