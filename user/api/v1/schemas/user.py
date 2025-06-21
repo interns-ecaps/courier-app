@@ -76,7 +76,7 @@ class FetchUser(BaseModel):
 # ===================== Auth =========================
 class SignUpRequest(BaseModel):
     email: EmailStr
-    password: constr(min_length=6)
+    password: constr(min_length=6) # type: ignore
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     phone_number: Optional[str] = None
