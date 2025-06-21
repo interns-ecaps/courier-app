@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from shipment.api.v1.models.package import Currency, Package, PackageType
 from shipment.api.v1.models.status import  ShipmentStatus
 from shipment.api.v1.models.shipment import Shipment
+# from shipment.api.v1.endpoints.routes import 
 from shipment.api.v1.schemas.shipment import (
     CreateCurrency,
     CreatePackage,
@@ -191,7 +192,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from shipment.api.v1.models.shipment import Shipment 
 from shipment.api.v1.models.package import Package 
-from user.api.v1.models.users import Address
+from user.api.v1.models.address import Address
 from shipment.api.v1.models.status import (
     StatusTracker,
     ShipmentStatus,

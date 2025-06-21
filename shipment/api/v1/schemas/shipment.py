@@ -1,6 +1,8 @@
 
 
+from datetime import datetime
 from pydantic import BaseModel, Field, constr, EmailStr
+from pydantic_settings import BaseSettings
 from enum import Enum
 
 from sqlalchemy import DateTime
@@ -11,23 +13,26 @@ import re
 from shipment.api.v1.models.shipment import ShipmentType 
 
 class CreateShipment(BaseModel):
-    sender_id = int
-    sender_name = str
-    sender_phone = str
-    sender_email = str
-    pickup_address = int
-    recipient_id = int
-    recipient_name = str
-    recipient_phone = str
-    recipient_email = str
-    delivery_address = int
-    courier_id = int
-    shipment_type = ShipmentType
-    package_id = int
-    pickup_date = DateTime
-    special_instructions = str
-    insurance_required = bool
-    signature_required = bool
+    sender_id : int
+    sender_name : str
+    sender_phone : str
+    sender_email : str
+    pickup_address : int
+    recipient_id : int
+    recipient_name : str
+    recipient_phone : str
+    recipient_email : str
+    delivery_address : int
+    courier_id : int
+    shipment_type : ShipmentType
+    package_id : int
+    pickup_date : datetime
+    special_instructions : str
+    insurance_required : bool
+    signature_required : bool
+
+    class Config:
+        from_attributes = True
 
 
 class CreateCurrency(BaseModel):
@@ -58,7 +63,7 @@ class CreatePackage(BaseModel):
 
 class FetchPackage(BaseModel):
     id: int
-    package_type: PackageType  # ✅ Use the updated enum here
+    package_type: PackageType  
     weight: float
     length: float
     width: float
@@ -92,18 +97,7 @@ class CreateStatusTracker(BaseModel):
     shipment_id: int
     package_id: int
     status: str
-    current_location: str  # ← make it a string instead of int
-    is_delivered: bool = False
-
-    class Config:
-        orm_mode = True
-
-
-
-class CreateShipment(BaseModel):
-    sender_id: int
-    receiver_id: int
-    package_id: int  
+    current_location: str 
 
     class Config:
         orm_mode = True
