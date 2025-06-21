@@ -326,7 +326,6 @@ def create_status_tracker(status_data: CreateStatusTracker, db: Session):
         package_id=status_data.package_id,
         status=status_enum,
         current_location=status_data.current_location,
-        is_delivered=status_data.is_delivered or False,
     )
 
     db.add(tracker)

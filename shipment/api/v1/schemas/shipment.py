@@ -124,17 +124,15 @@ class CreateShipment(BaseModel):
         orm_mode = True
 
 
-from pydantic import BaseModel
 
 class CreateStatusTracker(BaseModel):
     shipment_id: int
     package_id: int
     status: str
-    current_location: str 
+    current_location: str
+    # is_delivered: bool
 
     class Config:
-        orm_mode = True
-
         from_attributes = True
 
 
