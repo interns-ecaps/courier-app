@@ -49,4 +49,4 @@ class StatusTracker(Base):
     shipment = relationship("Shipment", back_populates="status")
     package = relationship("Package", back_populates="status")
 
-    location = relationship("Address", back_populates="status")
+    # location = relationship("Address", back_populates="status")

@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, EmailStr, constr
 from pydantic_settings import BaseSettings
@@ -9,7 +9,7 @@ from common.config import settings
 from shipment.api.v1.models.package import PackageType
 from shipment.api.v1.models.shipment import ShipmentType
 
-
+#===================SHIPMENT SCHEMAS===================
 class CreateShipment(BaseModel):
     sender_id: int
     sender_name: str
@@ -32,6 +32,14 @@ class CreateShipment(BaseModel):
     class Config:
         from_attributes = True
 
+class ShipmentFilter(BaseModel):
+    package_type: Optional[str] = None
+    currency_id: Optional[int] = None
+    is_negotiable: Optional[bool] = None
+    shipment_type: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 class CreateCurrency(BaseModel):
     currency: str
@@ -61,6 +69,50 @@ class FetchPackage(BaseModel):
     height: float
     is_negotiable: bool
     currency_id: int
+
+    class Config:
+        from_attributes = True
+
+
+class FetchShipment(BaseModel):
+    id: int
+    tracking_number: str
+
+    # Sender info
+    sender_id: int
+    sender_name: str
+    sender_phone: str
+    sender_email: Optional[EmailStr]
+
+    # Recipient info
+    recipient_id: Optional[int]
+    recipient_name: str
+    recipient_phone: str
+    recipient_email: Optional[EmailStr]
+
+    # Courier and address info
+    courier_id: Optional[int]
+    pickup_address_id: int
+    delivery_address_id: int
+
+    # Shipment details
+    shipment_type: ShipmentType
+
+    # Dates
+    pickup_date: Optional[datetime]
+    delivery_date: Optional[datetime]
+    estimated_delivery: Optional[datetime]
+
+    # Extra info
+    special_instructions: Optional[str]
+    insurance_required: bool
+    signature_required: bool
+
+    # Nested packages
+    package_id: int
+
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
 
     class Config:
         from_attributes = True

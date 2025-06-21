@@ -76,4 +76,4 @@ class Address(Base):
 
     country = relationship("Country", back_populates="addresses")
 
-    status = relationship("StatusTracker", back_populates="location")
+    # status = relationship("StatusTracker", back_populates="location")

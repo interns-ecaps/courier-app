@@ -1,4 +1,3 @@
-from email.headerregistry import Address
 from fastapi import HTTPException
 from shipment.api.v1.models.package import Currency, Package, PackageType
 from shipment.api.v1.models.status import  ShipmentStatus
@@ -7,11 +6,14 @@ from shipment.api.v1.schemas.shipment import (
     CreateCurrency,
     CreatePackage,
     CreateShipment,
+    FetchShipment,
+    ShipmentFilter,
     UpdatePackage,
 )
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 
+from user.api.v1.models.address import Address
 from user.api.v1.models.users import User
 
 
@@ -23,8 +25,8 @@ class ShipmentService:
             raise HTTPException(status_code=400, detail="Sender not found")
     
         # Validate pickup address ownership
-        pickup_address = db.query(Address).filter(Address.id == shipment_data.pickup_address).first()
-        if not pickup_address or pickup_address.user_id != shipment_data.sender_id:
+        pickup_address_id = db.query(Address).filter(Address.id == shipment_data.pickup_address_id).first()
+        if not pickup_address_id or pickup_address_id.user_id != shipment_data.sender_id:
             raise HTTPException(
                 status_code=400,
                 detail="Pickup address does not belong to the sender or does not exist"
@@ -36,8 +38,8 @@ class ShipmentService:
             raise HTTPException(status_code=400, detail="Recipient not found")
 
         # Validate delivery address ownership
-        delivery_address = db.query(Address).filter(Address.id == shipment_data.delivery_address).first()
-        if not delivery_address or delivery_address.user_id != shipment_data.recipient_id:
+        delivery_address_id = db.query(Address).filter(Address.id == shipment_data.delivery_address_id).first()
+        if not delivery_address_id or delivery_address_id.user_id != shipment_data.recipient_id:
             raise HTTPException(
                 status_code=400,
                 detail="Delivery address does not belong to the recipient or does not exist"
@@ -78,27 +80,54 @@ class ShipmentService:
         package_type: Optional[str] = None,
         currency_id: Optional[int] = None,
         is_negotiable: Optional[bool] = None,
+        shipment_type: Optional[str] = None,
         page: int = 1,
         limit: int = 10,
     ):
-        query = db.query(Package).filter(Package.is_deleted == False)
+        query = db.query(Shipment).options(joinedload(Shipment.packages)).filter(Shipment.is_deleted == False)
 
-        if package_type:
-            try:
-                query = query.filter(Package.package_type == PackageType(package_type))
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid package_type")
+        # Only join Package if any package-related filter is present
+        if any([package_type, currency_id, is_negotiable is not None]):
+            query = query.join(Shipment.packages)
 
-        if currency_id:
-            query = query.filter(Package.currency_id == currency_id)
+            if package_type:
+                try:
+                    query = query.filter(Package.package_type == PackageType(package_type))
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Invalid package type")
 
-        if is_negotiable is not None:
-            query = query.filter(Package.is_negotiable == is_negotiable)
+            if currency_id is not None:
+                query = query.filter(Package.currency_id == currency_id)
 
-        total = query.count()
-        results = query.offset((page - 1) * limit).limit(limit).all()
+            if is_negotiable is not None:
+                query = query.filter(Package.is_negotiable == is_negotiable)
 
-        return {"page": page, "limit": limit, "total": total, "results": results}
+        if shipment_type:
+            query = query.filter(Shipment.shipment_type == shipment_type)
+
+        total = query.distinct().count()
+        shipments = query.distinct().offset((page - 1) * limit).limit(limit).all()
+
+        return {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "results": [FetchShipment.model_validate(s) for s in shipments]
+        }
+
+    @staticmethod
+    def get_shipment_by_id(shipment_id: int, db: Session):
+        shipment = (
+            db.query(Shipment)
+            .options(joinedload(Shipment.packages))
+            .filter(Shipment.id == shipment_id, Shipment.is_deleted == False)
+            .first()
+        )
+
+        if not shipment:
+            raise HTTPException(status_code=404, detail="Shipment not found")
+
+        return FetchShipment.model_validate(shipment)
 
 
 class CurrencyService:
