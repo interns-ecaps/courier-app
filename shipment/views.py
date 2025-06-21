@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 from shipment.api.v1.models.package import Currency, Package, PackageType
-from shipment.api.v1.models.status import  ShipmentStatus
+from shipment.api.v1.models.status import ShipmentStatus
 from shipment.api.v1.models.shipment import Shipment, ShipmentType
 from shipment.api.v1.schemas.shipment import (
     CreateCurrency,
@@ -9,6 +9,7 @@ from shipment.api.v1.schemas.shipment import (
     FetchShipment,
     ShipmentFilter,
     UpdatePackage,
+    UpdateShipment,
 )
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
@@ -16,6 +17,8 @@ from typing import List, Optional
 from user.api.v1.models.address import Address
 from user.api.v1.models.users import User
 
+
+# ========================= SHIPMENT SERVICE =========================
 
 class ShipmentService:
     def create_shipment(shipment_data: CreateShipment, db: Session):
@@ -128,19 +131,32 @@ class ShipmentService:
             raise HTTPException(status_code=404, detail="Shipment not found")
 
         return FetchShipment.model_validate(shipment)
+    
+    @staticmethod
+    def delete_shipment(shipment_id: int, db: Session):
+        shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
+        if not shipment:
+            raise HTTPException(status_code=404, detail="Shipment not found")
 
-
-class CurrencyService:
-    def create_currency(currency_data: CreateCurrency, db: Session):
-        currency = currency_data.currency
-        if not currency:
-            raise Exception("currency is required")
-        currency_obj = Currency(currency=currency_data.currency)
-        db.add(currency_obj)
+        shipment.is_deleted = True
         db.commit()
-        db.refresh(currency_obj)
-        return currency_obj
+        return {"message": "Shipment deleted successfully"}
+    
+    @staticmethod
+    def update_shipment(shipment_id: int, shipment_data: UpdateShipment, db: Session):
+        shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
+        if not shipment:
+            raise HTTPException(status_code=404, detail="Shipment not found")
 
+        for key, value in shipment_data.dict().items():
+            setattr(shipment, key, value)
+
+        db.commit()
+        db.refresh(shipment)
+        return FetchShipment.model_validate(shipment)
+
+
+# ========================= PACKAGE SERVICE =========================
 
 class PackageService:
     def create_package(package_data: CreatePackage, db: Session):
@@ -207,31 +223,6 @@ class PackageService:
         if not package:
             raise HTTPException(status_code=404, detail="Package not found")
         return package
-    
-class CurrencyService:
-    @staticmethod
-    def create_currency(currency_data: CreateCurrency, db: Session):
-        if not currency_data.currency:
-            raise HTTPException(status_code=400, detail="Currency is required")
-
-        currency_obj = Currency(currency=currency_data.currency)
-        db.add(currency_obj)
-        db.commit()
-        db.refresh(currency_obj)
-        return currency_obj
-
-    @staticmethod
-    def get_currencies(db: Session):
-        return db.query(Currency).all()
-
-    @staticmethod
-    def get_currency_by_id(currency_id: int, db: Session):
-        currency = db.query(Currency).filter(Currency.id == currency_id).first()
-        if not currency:
-            raise HTTPException(status_code=404, detail="Currency not found")
-        return currency
-
-        
 
     @staticmethod
     def disable_package(package_id: int, db: Session):
@@ -258,7 +249,6 @@ class CurrencyService:
 
     def update_package(package_id: int, package_data: UpdatePackage, db: Session):
         package = db.query(Package).filter(Package.id == package_id).first()
-        # print(user, "::user")
 
         if not package:
             raise HTTPException(status_code=404, detail="Package not found.")
@@ -268,10 +258,36 @@ class CurrencyService:
 
         try:
             db.commit()
-            db.refresh(package)  # optional — to return the updated version
+            db.refresh(package)
         except Exception as e:
             db.rollback()
             raise HTTPException(
                 status_code=500, detail=f"Error while updating package: {str(e)}"
             )
         return package
+
+
+# ========================= CURRENCY SERVICE =========================
+
+class CurrencyService:
+    @staticmethod
+    def create_currency(currency_data: CreateCurrency, db: Session):
+        if not currency_data.currency:
+            raise HTTPException(status_code=400, detail="Currency is required")
+
+        currency_obj = Currency(currency=currency_data.currency)
+        db.add(currency_obj)
+        db.commit()
+        db.refresh(currency_obj)
+        return currency_obj
+
+    @staticmethod
+    def get_currencies(db: Session):
+        return db.query(Currency).all()
+
+    @staticmethod
+    def get_currency_by_id(currency_id: int, db: Session):
+        currency = db.query(Currency).filter(Currency.id == currency_id).first()
+        if not currency:
+            raise HTTPException(status_code=404, detail="Currency not found")
+        return currency
