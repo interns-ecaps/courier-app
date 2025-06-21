@@ -1,5 +1,8 @@
 from fastapi import HTTPException
 from shipment.api.v1.models.package import Currency, Package, PackageType
+from shipment.api.v1.models.status import  ShipmentStatus
+from shipment.api.v1.models.shipment import Shipment
+# from shipment.api.v1.endpoints.routes import 
 from shipment.api.v1.models.status import ShipmentStatus
 from shipment.api.v1.models.shipment import Shipment, ShipmentType
 from shipment.api.v1.schemas.shipment import (
@@ -14,6 +17,23 @@ from shipment.api.v1.schemas.shipment import (
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 
+# class ShipmentService:
+#     def create_shipment(shipment_data: CreateShipment, db: Session):
+#         new_shipment = Shipment(**shipment_data.dict())
+#         db.add(new_shipment)
+#         db.commit()
+#         db.refresh(new_shipment)
+#         return new_shipment
+
+#     def get_shipments(
+#         db: Session,
+#         package_type: Optional[str] = None,
+#         currency_id: Optional[int] = None,
+#         is_negotiable: Optional[bool] = None,
+#         page: int = 1,
+#         limit: int = 10,
+#     ):
+#         query = db.query(Package).filter(Package.is_deleted == False)
 from user.api.v1.models.address import Address
 from user.api.v1.models.users import User
 
@@ -267,6 +287,51 @@ class PackageService:
         return package
 
 
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+from shipment.api.v1.models.shipment import Shipment 
+from shipment.api.v1.models.package import Package 
+from user.api.v1.models.address import Address
+from shipment.api.v1.models.status import (
+    StatusTracker,
+    ShipmentStatus,
+)
+from shipment.api.v1.schemas.shipment import (
+    CreateStatusTracker,
+)  # You need to define this schema
+
+
+def create_status_tracker(status_data: CreateStatusTracker, db: Session):
+    # ✅ Validate foreign key: Shipment
+    shipment = db.query(Shipment).filter(Shipment.id == status_data.shipment_id).first()
+    if not shipment:
+        raise HTTPException(status_code=400, detail="Shipment not found")
+
+    # ✅ Validate foreign key: Package
+    package = db.query(Package).filter(Package.id == status_data.package_id).first()
+    if not package:
+        raise HTTPException(status_code=400, detail="Package not found")
+
+    # ✅ Validate Enum
+    try:
+        status_enum = ShipmentStatus(status_data.status)
+    except ValueError:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid status: {status_data.status}"
+        )
+
+    # ✅ Create object
+    tracker = StatusTracker(
+        shipment_id=status_data.shipment_id,
+        package_id=status_data.package_id,
+        status=status_enum,
+        current_location=status_data.current_location,
+    )
+
+    db.add(tracker)
+    db.commit()
+    db.refresh(tracker)
+    return tracker
 # ========================= CURRENCY SERVICE =========================
 
 class CurrencyService:

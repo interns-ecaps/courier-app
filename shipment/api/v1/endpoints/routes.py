@@ -1,3 +1,18 @@
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from shipment import views
+from fastapi import Request, Depends, Path
+from sqlalchemy.orm import Session
+from common.database import get_db
+from shipment.api.v1.schemas.shipment import (
+    CreateCurrency,
+    CreatePackage,
+    CreateShipment,
+    FetchPackage,
+    UpdatePackage,
+    CreateStatusTracker
+)
+from typing import Optional, List
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Path, Request
 from sqlalchemy.orm import Session
 from typing import Optional, List
@@ -119,6 +134,14 @@ def patch_package(
     return views.PackageService.update_package(package_id, request, db)
 
 
+# ============================= STATUS TRACKER ===================================
+
+@shipment_router.post("/create_status_tracker/")
+def create_status_tracker(
+    request: CreateStatusTracker,
+    db: Session = Depends(get_db)
+):
+    return views.create_status_tracker(request, db)
 # =============================== CURRENCY =======================================
 
 

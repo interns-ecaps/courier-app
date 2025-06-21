@@ -1,3 +1,8 @@
+
+
+from datetime import datetime
+from pydantic import BaseModel, Field, constr, EmailStr
+from pydantic_settings import BaseSettings
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
@@ -9,6 +14,29 @@ from common.config import settings
 from shipment.api.v1.models.package import PackageType
 from shipment.api.v1.models.shipment import ShipmentType
 
+from shipment.api.v1.models.shipment import ShipmentType 
+
+class CreateShipment(BaseModel):
+    sender_id : int
+    sender_name : str
+    sender_phone : str
+    sender_email : str
+    pickup_address : int
+    recipient_id : int
+    recipient_name : str
+    recipient_phone : str
+    recipient_email : str
+    delivery_address : int
+    courier_id : int
+    shipment_type : ShipmentType
+    package_id : int
+    pickup_date : datetime
+    special_instructions : str
+    insurance_required : bool
+    signature_required : bool
+
+    class Config:
+        from_attributes = True
 
 # ======================= CURRENCY SCHEMAS =======================
 
@@ -43,6 +71,7 @@ class CreatePackage(BaseModel):
 
 class FetchPackage(BaseModel):
     id: int
+    package_type: PackageType  
     package_type: PackageType
     weight: float
     length: float
@@ -90,6 +119,18 @@ class CreateShipment(BaseModel):
     special_instructions: str
     insurance_required: bool
     signature_required: bool
+
+    class Config:
+        orm_mode = True
+
+
+
+class CreateStatusTracker(BaseModel):
+    shipment_id: int
+    package_id: int
+    status: str
+    current_location: str
+    # is_delivered: bool
 
     class Config:
         from_attributes = True
