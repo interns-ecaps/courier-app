@@ -2,13 +2,14 @@
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
+
 class Settings(BaseSettings):
     environment: str
     db_user: str
     db_pass: str
     db_host: str
     db_name: str
-    db_port: str
+    db_port: int
     # JWT
     secret_key: str
     algorithm: str = "HS256"
