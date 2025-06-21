@@ -216,48 +216,60 @@ from user.api.v1.schemas.user import CreateAddress  # 👈 import your schema
 
 
 class AddressService:
+
     @staticmethod
     def create_address(address_data: CreateAddress, db: Session):
-    
         country = db.query(Country).filter(Country.id == address_data.country_code).first()
         if not country:
             raise HTTPException(status_code=404, detail="Country not found")
 
         address = Address(
-        user_id=address_data.user_id,
-        label=address_data.label,
-        street_address=address_data.street_address,
-        city=address_data.city,
-        state=address_data.state,
-        postal_code=address_data.postal_code,
-        landmark=address_data.landmark,
-        latitude=address_data.latitude,
-        longitude=address_data.longitude,
-        is_default=address_data.is_default,
-        country=country  # 👈 assign full object here
-    )
+            user_id=address_data.user_id,
+            label=address_data.label,
+            street_address=address_data.street_address,
+            city=address_data.city,
+            state=address_data.state,
+            postal_code=address_data.postal_code,
+            landmark=address_data.landmark,
+            latitude=address_data.latitude,
+            longitude=address_data.longitude,
+            is_default=address_data.is_default,
+            country=country
+        )
 
         db.add(address)
         db.commit()
         db.refresh(address)
         return address
-    
+
     @staticmethod
     def get_address_by_id(address_id: int, db: Session):
         address = db.query(Address).filter(Address.id == address_id).first()
+
         if not address:
             raise HTTPException(status_code=404, detail="Address not found")
+
+        if address.is_deleted:
+            raise HTTPException(status_code=403, detail="Address has been deleted and cannot be fetched")
+
         return address
-    
+
     @staticmethod
     def soft_delete_address(address_id: int, db: Session):
-        address = db.query(Address).filter(Address.id == address_id, Address.is_deleted == False).first()
+        address = db.query(Address).filter(Address.id == address_id).first()
+
         if not address:
-            raise HTTPException(status_code=404, detail="Address not found or already deleted")
+            raise HTTPException(status_code=404, detail="Address not found")
+
+        if address.is_deleted:
+            raise HTTPException(status_code=400, detail="Address is already deleted")
 
         address.is_deleted = True
         db.commit()
-        return {"detail": f"Address with ID {address_id} deleted successfully"}
+        db.refresh(address)
+        return {"message": f"Address ID {address_id} has been soft deleted."}
+ 
+    
 
 
 

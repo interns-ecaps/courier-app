@@ -110,17 +110,15 @@ def create_address_route(payload: CreateAddress, db: Session = Depends(get_db)):
     return AddressService.create_address(payload, db)
 
 @user_router.get("/addresses", response_model=FetchAddress)
-def get_address(id: int = Query(..., description="ID of the address"), db: Session = Depends(get_db)):
-    address = db.query(Address).filter(Address.id == id).first()
-    if not address:
-        raise HTTPException(status_code=404, detail="Address not found")
-    return address
-@user_router.delete("/addresses/")
+def get_address(id: int = Query(...), db: Session = Depends(get_db)):
+    return AddressService.get_address_by_id(id, db)
+@user_router.delete("/addresses", status_code=200)
 def delete_address(
     address_id: int = Query(..., alias="id", description="ID of the address to soft delete"),
     db: Session = Depends(get_db),
 ):
     return AddressService.soft_delete_address(address_id, db)
+
 
 
 #country
