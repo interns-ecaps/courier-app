@@ -1,13 +1,12 @@
 from datetime import datetime
-from pydantic import BaseModel, Field, constr, EmailStr
 from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field, EmailStr, constr
 from pydantic_settings import BaseSettings
 from common.config import settings
-from sqlalchemy import DateTime
-from shipment.api.v1.models.package import PackageType
-from typing import Optional
-import re
 
+from shipment.api.v1.models.package import PackageType
 from shipment.api.v1.models.shipment import ShipmentType
 
 
@@ -39,7 +38,7 @@ class CreateCurrency(BaseModel):
 
 
 class CreatePackage(BaseModel):
-    package_type: str
+    package_type: PackageType
     weight: float
     length: float
     width: float
@@ -53,17 +52,9 @@ class CreatePackage(BaseModel):
         from_attributes = True
 
 
-# class PackageTypeEnum(str, Enum):
-#     BOX = "box"
-#     ENVELOPE = "envelope"
-#     PALLET = "pallet"
-#     STACKABLE_GOODS = "stackable_goods"  # ✅ Add this line
-#     NON_STACKABLE_GOODS = "non_stackable_goods"
-
-
 class FetchPackage(BaseModel):
     id: int
-    package_type: PackageType  # ✅ Use the updated enum here
+    package_type: PackageType
     weight: float
     length: float
     width: float
@@ -73,9 +64,6 @@ class FetchPackage(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-from pydantic import BaseModel
 
 
 class FetchCurrency(BaseModel):
