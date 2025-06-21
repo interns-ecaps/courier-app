@@ -241,6 +241,23 @@ class AddressService:
         db.commit()
         db.refresh(address)
         return address
+    
+    @staticmethod
+    def get_address_by_id(address_id: int, db: Session):
+        address = db.query(Address).filter(Address.id == address_id).first()
+        if not address:
+            raise HTTPException(status_code=404, detail="Address not found")
+        return address
+    
+    @staticmethod
+    def soft_delete_address(address_id: int, db: Session):
+        address = db.query(Address).filter(Address.id == address_id, Address.is_deleted == False).first()
+        if not address:
+            raise HTTPException(status_code=404, detail="Address not found or already deleted")
+
+        address.is_deleted = True
+        db.commit()
+        return {"detail": f"Address with ID {address_id} deleted successfully"}
 
 
 

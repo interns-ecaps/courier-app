@@ -1,35 +1,32 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional
-from pydantic import BaseModel
 from decimal import Decimal
-
-
+from typing import Optional
 
 from pydantic import BaseModel, EmailStr, constr, Field
-import re
 
-# Enum for user roles
+
+# ========================= Enums ============================
 class UserType(str, Enum):
     importer_exporter = "importer_exporter"
     supplier = "supplier"
     super_admin = "super_admin"
 
 
-# Input when user signs up (includes raw password)
+# ===================== User Schemas =========================
 class SignUpUser(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
-    password: constr(min_length=6)  # type: ignore
+    password: constr(min_length=6)
     phone_number: str
     user_type: UserType
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
 
 
-# Input for internal user creation (password already hashed)
 class CreateUser(BaseModel):
     first_name: str
     last_name: str
@@ -38,29 +35,28 @@ class CreateUser(BaseModel):
     phone_number: str
     user_type: UserType
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
 
 
-# # Partial update schema (used with PATCH)
 class UpdateUser(BaseModel):
-    first_name: Optional[str] = Field(None)
-    last_name: Optional[str] = Field(None)
-    hashed_password: Optional[constr(min_length=6)] = Field(None)  # type: ignore
-    email: Optional[EmailStr] = Field(None)
-    phone_number: Optional[str] = Field(None)
-    user_type: Optional[str] = Field(None)
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    hashed_password: Optional[constr(min_length=6)] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    user_type: Optional[str] = None
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
 
 
-# # Full user update schema (used with PUT)
 class ReplaceUser(CreateUser):
-    pass  # exact same fields as CreateUser; can extend later if needed
+    pass  # same fields as CreateUser; placeholder for full PUT update
 
 
-# Output schema for fetching user data
 class FetchUser(BaseModel):
     id: int
     first_name: str
@@ -72,41 +68,29 @@ class FetchUser(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
 
 
-# replace
-class ReplaceUser(CreateUser):
-    pass
-
-# class UpdateUser(BaseModel):
-#     is_active: bool
-
-#     class Config:
-#         orm_mode = True
-
-
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
-
-
+# ===================== Auth =========================
 class SignUpRequest(BaseModel):
     email: EmailStr
-    password: constr(min_length=6)  # type: ignore # ✅ Add minimum length constraint
+    password: constr(min_length=6)
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     phone_number: Optional[str] = None
     user_type: Optional[str] = None
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
 
 
-#-----------addresses--------------#
+# ===================== Address =========================
 class CreateAddress(BaseModel):
     user_id: int
-    label: Optional[str]
+    label: Optional[str] = None
     street_address: str
     city: str
     state: str
@@ -121,15 +105,13 @@ class CreateAddress(BaseModel):
         "from_attributes": True
     }
 
-    
-
 
 class FetchAddress(CreateAddress):
     id: int
 
-#-----------country--------------#
+
+# ===================== Country =========================
 class CreateCountry(BaseModel):
-    # id: int
     name: str
 
     model_config = {
@@ -140,3 +122,7 @@ class CreateCountry(BaseModel):
 class FetchCountry(CreateCountry):
     created_at: Optional[str]
     updated_at: Optional[str]
+
+    model_config = {
+        "from_attributes": True
+    }

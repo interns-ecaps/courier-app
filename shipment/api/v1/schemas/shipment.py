@@ -20,24 +20,30 @@ import re
 
 from shipment.api.v1.models.shipment import ShipmentType 
 
+from datetime import datetime
+from pydantic import BaseModel, EmailStr
+from typing import Optional
+from shipment.api.v1.models.shipment import ShipmentType
+
 class CreateShipment(BaseModel):
-    sender_id = int
-    sender_name = str
-    sender_phone = str
-    sender_email = str
-    pickup_address = int
-    recipient_id = int
-    recipient_name = str
-    recipient_phone = str
-    recipient_email = str
-    delivery_address = int
-    courier_id = int
-    shipment_type = ShipmentType
-    package_id = int
-    pickup_date = DateTime
-    special_instructions = str
-    insurance_required = bool
-    signature_required = bool
+    sender_id: int
+    sender_name: str
+    sender_phone: str
+    sender_email: EmailStr
+    pickup_address: int
+    recipient_id: int
+    recipient_name: str
+    recipient_phone: str
+    recipient_email: EmailStr
+    delivery_address: int
+    courier_id: int
+    shipment_type: ShipmentType
+    package_id: int
+    pickup_date: datetime
+    special_instructions: Optional[str] = None
+    insurance_required: bool
+    signature_required: bool
+
 
 
 class CreateCurrency(BaseModel):
@@ -55,7 +61,7 @@ class CreatePackage(BaseModel):
     final_cost : Optional[float] = Field(None)
     
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # class PackageTypeEnum(str, Enum):
@@ -77,7 +83,7 @@ class FetchPackage(BaseModel):
     currency_id: int
 
 class Config:
-        orm_mode = True
+        from_attributes = True
 
 from pydantic import BaseModel
 
@@ -86,7 +92,7 @@ class FetchCurrency(BaseModel):
     currency: str
 
 class Config:
-    orm_mode = True
+    from_attributes = True
 
 
 
@@ -103,4 +109,4 @@ class UpdatePackage(BaseModel):
 
 
     class Config:
-        orm_mode = True
+        from_attributes = True
