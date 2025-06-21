@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from common.database import get_db
 from shipment.api.v1.endpoints import routes
 from user import views
+from user.api.v1.models.address import Address
 from user.views import CountryService, UserService, signup_user  # ✅ removed create_address
 from user.views import AddressService  # ✅ imported from correct file
 
@@ -107,6 +108,17 @@ def disable_user(user_id: int, db: Session = Depends(get_db)):
 @user_router.post("/addresses/", response_model=FetchAddress, status_code=201)
 def create_address_route(payload: CreateAddress, db: Session = Depends(get_db)):
     return AddressService.create_address(payload, db)
+
+@user_router.get("/addresses", response_model=FetchAddress)
+def get_address(id: int = Query(...), db: Session = Depends(get_db)):
+    return AddressService.get_address_by_id(id, db)
+@user_router.delete("/addresses", status_code=200)
+def delete_address(
+    address_id: int = Query(..., alias="id", description="ID of the address to soft delete"),
+    db: Session = Depends(get_db),
+):
+    return AddressService.soft_delete_address(address_id, db)
+
 
 
 #country
