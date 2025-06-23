@@ -1,35 +1,32 @@
-# courier_app/core/decorators/token_required.py
-
-from fastapi.responses import JSONResponse
-from fastapi import Request
-from jose import JWTError
-import jwt
-from jwt import ExpiredSignatureError
-from starlette.status import HTTP_401_UNAUTHORIZED
+from fastapi import Request, HTTPException
 from functools import wraps
-from common.config import Settings
-
-settings = Settings()
+from jose import jwt, JWTError
+from starlette.status import HTTP_401_UNAUTHORIZED
+from common.config import settings
 
 def token_required(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
-        request: Request = kwargs.get("request") or (args[0] if args else None)
-
+        request: Request = kwargs.get("request")
         if not request:
-            return JSONResponse({"error": "Request object missing"}, status_code=400)
+            raise HTTPException(status_code=400, detail="Request object missing")
 
         token = request.headers.get("Authorization")
-        if not token or not token.startswith("Bearer "):
-            return JSONResponse({"error": "Authorization token missing"}, status_code=HTTP_401_UNAUTHORIZED)
+        if not token:
+            raise HTTPException(status_code=401, detail="Authorization token missing")
+
+        if not token.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Invalid token format")
 
         try:
-            payload = jwt.decode(token.split(" ")[1], settings.jwt_secret_key, algorithms=["HS256"])
-            request.state.email = payload.get("email")
-        except ExpiredSignatureError:
-            return JSONResponse({"error": "Token expired"}, status_code=HTTP_401_UNAUTHORIZED)
-        except JWTError:
-            return JSONResponse({"error": "Invalid token"}, status_code=HTTP_401_UNAUTHORIZED)
+            payload = jwt.decode(
+                token.split(" ")[1],
+                settings.secret_key,  # Use correct key name
+                algorithms=[settings.algorithm]
+            )
+            request.state.user = payload  # Optionally attach user to request
+        except JWTError as e:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
 
         return await func(*args, **kwargs)
 

@@ -13,10 +13,11 @@ from user.views import AddressService  # ✅ imported from correct file
 from core.decorators.token_required import token_required
 from user.api.v1.utils.auth import get_current_user
 from user.views import AddressService
+from fastapi import Request
 
 
 
-from shipment import views
+from user import views
 from user.api.v1.schemas.user import (
     CreateAddress,
     CreateCountry,

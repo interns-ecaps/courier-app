@@ -33,67 +33,67 @@ def get_db():
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
-class AuthenticateUser:
-    def login_user(email: str, password: str, db: Session):
-        # 1. Fetch the user from the DB
-        user = db.query(User).filter(User.email == email).first()
 
-        # 2. Check if user exists
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
+def login_user(email: str, password: str, db: Session):
+    # 1. Fetch the user from the DB
+    user = db.query(User).filter(User.email == email).first()
 
-        # 3. Verify the password
-        if not verify_password(password, user.hashed_password):
-            raise HTTPException(status_code=401, detail="Invalid credentials")
+    # 2. Check if user exists
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        # 4. Create JWT tokens
-        access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
-        refresh_token_expires = settings.refresh_token_expire_days
+    # 3. Verify the password
+    if not verify_password(password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        access_token = create_access_token(
-            data={"sub": str(user.id)}, expires_delta=access_token_expires
-        )
+    # 4. Create JWT tokens
+    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+    refresh_token_expires = settings.refresh_token_expire_days
 
-        refresh_token = create_refresh_token(
-            data={"sub": str(user.id)}, expires_days=refresh_token_expires
-        )
+    access_token = create_access_token(
+        data={"sub": str(user.id)}, expires_delta=access_token_expires
+    )
 
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "user_type": user.user_type,
-            },
-        }
+    refresh_token = create_refresh_token(
+        data={"sub": str(user.id)}, expires_days=refresh_token_expires
+    )
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "user_type": user.user_type,
+        },
+    }
 
 
-    def signup_user(user_data: SignUpRequest, db: Session):
-        existing_user = db.query(User).filter(User.email == user_data.email).first()
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Email already registered")
+def signup_user(user_data: SignUpRequest, db: Session):
+    existing_user = db.query(User).filter(User.email == user_data.email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
 
-        hashed_password = pwd_context.hash(user_data.password)
+    hashed_password = pwd_context.hash(user_data.password)
 
-        new_user = User(
-            email=user_data.email,
-            hashed_password=hashed_password,
-            first_name=user_data.first_name,
-            last_name=user_data.last_name,
-            phone_number=user_data.phone_number,
-            user_type=user_data.user_type,
-            # is_active=True,
-            updated_at=datetime.utcnow(),
-        )
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
+    new_user = User(
+        email=user_data.email,
+        hashed_password=hashed_password,
+        first_name=user_data.first_name,
+        last_name=user_data.last_name,
+        phone_number=user_data.phone_number,
+        user_type=user_data.user_type,
+        # is_active=True,
+        updated_at=datetime.utcnow(),
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
 
-        return {"user_id": new_user.id, "email": new_user.email}
+    return {"user_id": new_user.id, "email": new_user.email}
 
 
 class UserService:
@@ -216,60 +216,31 @@ from user.api.v1.schemas.user import CreateAddress  # 👈 import your schema
 
 
 class AddressService:
-
     @staticmethod
     def create_address(address_data: CreateAddress, db: Session):
+    
         country = db.query(Country).filter(Country.id == address_data.country_code).first()
         if not country:
             raise HTTPException(status_code=404, detail="Country not found")
 
         address = Address(
-            user_id=address_data.user_id,
-            label=address_data.label,
-            street_address=address_data.street_address,
-            city=address_data.city,
-            state=address_data.state,
-            postal_code=address_data.postal_code,
-            landmark=address_data.landmark,
-            latitude=address_data.latitude,
-            longitude=address_data.longitude,
-            is_default=address_data.is_default,
-            country=country
-        )
+        user_id=address_data.user_id,
+        label=address_data.label,
+        street_address=address_data.street_address,
+        city=address_data.city,
+        state=address_data.state,
+        postal_code=address_data.postal_code,
+        landmark=address_data.landmark,
+        latitude=address_data.latitude,
+        longitude=address_data.longitude,
+        is_default=address_data.is_default,
+        country=country  # 👈 assign full object here
+    )
 
         db.add(address)
         db.commit()
         db.refresh(address)
         return address
-
-    @staticmethod
-    def get_address_by_id(address_id: int, db: Session):
-        address = db.query(Address).filter(Address.id == address_id).first()
-
-        if not address:
-            raise HTTPException(status_code=404, detail="Address not found")
-
-        if address.is_deleted:
-            raise HTTPException(status_code=403, detail="Address has been deleted and cannot be fetched")
-
-        return address
-
-    @staticmethod
-    def soft_delete_address(address_id: int, db: Session):
-        address = db.query(Address).filter(Address.id == address_id).first()
-
-        if not address:
-            raise HTTPException(status_code=404, detail="Address not found")
-
-        if address.is_deleted:
-            raise HTTPException(status_code=400, detail="Address is already deleted")
-
-        address.is_deleted = True
-        db.commit()
-        db.refresh(address)
-        return {"message": f"Address ID {address_id} has been soft deleted."}
- 
-    
 
 
 

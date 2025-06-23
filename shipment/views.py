@@ -11,7 +11,7 @@ from shipment.api.v1.schemas.shipment import CreatePayment, UpdatePayment
 
 
 class CurrencyService:
-    def create_currency(currency_data: CreateCurrency, db: Session):
+    async def create_currency(currency_data: CreateCurrency, db: Session):
         currency = currency_data.currency
         if not currency:
             raise Exception("currency is required")
@@ -22,7 +22,7 @@ class CurrencyService:
         return currency_obj
        
     
-    def update_currency(currency_id: int, new_data: CreateCurrency, db: Session):
+    async def update_currency(currency_id: int, new_data: CreateCurrency, db: Session):
         currency = db.query(Currency).filter(Currency.id == currency_id).first()
         if not currency:
             raise HTTPException(status_code=404, detail="Currency not found")
@@ -32,7 +32,13 @@ class CurrencyService:
         db.commit()
         db.refresh(currency)
         return currency
-
+    
+    @staticmethod
+    async def get_currency_by_id(currency_id: int, db: Session):
+        currency = db.query(Currency).filter(Currency.id == currency_id).first()
+        if not currency:
+            raise HTTPException(status_code=404, detail="Currency not found")
+        return currency
 
 class PackageService:
     def create_package(package_data: CreatePackage, db: Session):
@@ -105,7 +111,7 @@ class PackageService:
     
 class PaymentService:
     @staticmethod
-    def create_payment(request: CreatePayment, db: Session):
+    async def create_payment(request: CreatePayment, db: Session):
         # Validate shipment
         shipment = db.query(Shipment).filter_by(id=request.shipment_id).first()
         if not shipment:
@@ -137,14 +143,14 @@ class PaymentService:
         return payment
 
     @staticmethod
-    def get_payment_by_id(payment_id: int, db: Session):
+    async def get_payment_by_id(payment_id: int, db: Session):
         payment = db.query(Payment).filter(Payment.id == payment_id, Payment.is_deleted == False).first()
         if not payment:
             raise HTTPException(status_code=404, detail="Payment not found")
         return payment
 
     @staticmethod
-    def update_payment(payment_id: int, new_data: UpdatePayment, db: Session):
+    async def update_payment(payment_id: int, new_data: UpdatePayment, db: Session):
         payment = db.query(Payment).filter(Payment.id == payment_id).first()
         if not payment:
             raise HTTPException(status_code=404, detail="Payment not found")
@@ -163,7 +169,6 @@ class PaymentService:
         return payment
 
      
-        from fastapi import HTTPException
 from shipment.api.v1.models.package import Currency, Package, PackageType
 from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage, UpdatePackage
 from sqlalchemy.orm import Session
@@ -171,20 +176,8 @@ from typing import List, Optional
 
 
 
-class CurrencyService:
-    def create_currency(currency_data: CreateCurrency, db: Session):
-        currency = currency_data.currency
-        if not currency:
-            raise Exception("currency is required")
-        currency_obj = Currency(currency=currency_data.currency)
-        db.add(currency_obj)
-        db.commit()
-        db.refresh(currency_obj)
-        return currency_obj
-
-
 class PackageService:
-    def create_package(package_data: CreatePackage, db: Session):
+    async def create_package(package_data: CreatePackage, db: Session):
         # currency_id = package_data.currency_id
         currency = (
             db.query(Currency).filter(Currency.id == package_data.currency_id).first()
@@ -212,7 +205,7 @@ class PackageService:
         db.refresh(package_obj)
         return package_obj
     @staticmethod
-    def get_packages(
+    async def get_packages(
         db: Session,
         package_type: Optional[str] = None,
         currency_id: Optional[int] = None,
@@ -220,7 +213,7 @@ class PackageService:
         page: int = 1,
         limit: int = 10,
     ):
-        query = db.query(Package).filter(Package.is_delete == False)
+        query = db.query(Package).filter(Package.is_deleted == False)
 
         if package_type:
             try:
@@ -244,14 +237,14 @@ class PackageService:
             "results": results
         }
 
-    def get_package_by_id(package_id: int, db: Session):
+    async def get_package_by_id(package_id: int, db: Session):
         package = db.query(Package).filter(Package.id == package_id).first()
         if not package:
             raise HTTPException(status_code=404, detail="Package not found")
         return package
         
     @staticmethod
-    def disable_package(package_id: int, db: Session):
+    async def disable_package(package_id: int, db: Session):
         package = db.query(Package).filter(Package.id == package_id).first()
 
         if not package:
@@ -273,7 +266,7 @@ class PackageService:
 
         return package
 
-    def update_package(package_id: int, package_data: UpdatePackage, db: Session):
+    async def update_package(package_id: int, package_data: UpdatePackage, db: Session):
         package = db.query(Package).filter(Package.id == package_id).first()
         # print(user, "::user")
 
