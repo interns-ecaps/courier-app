@@ -15,7 +15,7 @@ from user.views import AddressService
 
 
 
-from shipment import views
+from user import views
 from user.api.v1.schemas.user import (
     CreateAddress,
     CreateCountry,
