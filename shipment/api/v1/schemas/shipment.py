@@ -1,10 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
 from enum import Enum
-class CreateCurrency(BaseModel):
-    currency: str
-
-
 from datetime import datetime
 from pydantic import BaseModel, Field, constr, EmailStr
 from pydantic_settings import BaseSettings
@@ -20,67 +16,30 @@ from shipment.api.v1.models.package import PackageType
 from shipment.api.v1.models.shipment import ShipmentType
 
 from shipment.api.v1.models.shipment import ShipmentType
-from shipment.api.v1.models.status import ShipmentStatus 
+from shipment.api.v1.models.status import ShipmentStatus
 
 
 # ======================= CURRENCY SCHEMAS =======================
 
+
 class CreateCurrency(BaseModel):
     currency: str
+
+    class Config:
+        from_attributes = True
 
 
 class FetchCurrency(BaseModel):
     id: int
     currency: str
-
-    class Config:
-        from_attributes = True
-
-
-# ======================= PACKAGE SCHEMAS ========================
-
-class CreatePackage(BaseModel):
-    package_type: PackageType
-    weight: float
-    length: float
-    width: float
-    height: float
-    is_negotiable: bool
-    currency_id: int
-    estimated_cost: Optional[float] = Field(None)
-    final_cost: Optional[float] = Field(None)
-
-    class Config:
-        from_attributes = True
-
-
-class FetchPackage(BaseModel):
-    id: int
-    package_type: PackageType  
-    package_type: PackageType
-    weight: float
-    length: float
-    width: float
-    height: float
-    is_negotiable: bool
-    currency_id: int
     is_deleted: bool
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
-
-class UpdatePackage(BaseModel):
-    package_type: Optional[PackageType] = Field(None)
-    weight: Optional[float] = Field(None)
-    length: Optional[float] = Field(None)
-    width: Optional[float] = Field(None)
-    height: Optional[float] = Field(None)
-    is_negotiable: Optional[bool] = Field(None)
-    currency_id: Optional[int] = Field(None)
-    estimated_cost: Optional[float] = Field(None)
-    final_cost: Optional[float] = Field(None)
+class UpdateCurrency(BaseModel):
+    currency: Optional[str] = Field(None)
     is_deleted: Optional[bool] = Field(None)
 
     class Config:
@@ -88,6 +47,7 @@ class UpdatePackage(BaseModel):
 
 
 # ======================= SHIPMENT SCHEMAS =======================
+
 
 class CreateShipment(BaseModel):
     sender_id: int
@@ -110,18 +70,6 @@ class CreateShipment(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-
-
-# class ShipmentFilter(BaseModel):
-#     package_type: Optional[str] = None
-#     currency_id: Optional[int] = None
-#     is_negotiable: Optional[bool] = None
-#     shipment_type: Optional[str] = None
-
-#     class Config:
-#         from_attributes = True
 
 
 class FetchShipment(BaseModel):
@@ -208,9 +156,57 @@ class UpdateShipment(BaseModel):
         from_attributes = True
 
 
+# ======================= PACKAGE SCHEMAS ========================
+
+
+class CreatePackage(BaseModel):
+    package_type: PackageType
+    weight: float
+    length: float
+    width: float
+    height: float
+    is_negotiable: bool
+    currency_id: int
+    estimated_cost: Optional[float] = Field(None)
+    final_cost: Optional[float] = Field(None)
+
+    class Config:
+        from_attributes = True
+
+
+class FetchPackage(BaseModel):
+    id: int
+    package_type: PackageType
+    package_type: PackageType
+    weight: float
+    length: float
+    width: float
+    height: float
+    is_negotiable: bool
+    currency_id: int
+    is_deleted: bool
+
+    class Config:
+        from_attributes = True
+
+
+class UpdatePackage(BaseModel):
+    package_type: Optional[PackageType] = Field(None)
+    weight: Optional[float] = Field(None)
+    length: Optional[float] = Field(None)
+    width: Optional[float] = Field(None)
+    height: Optional[float] = Field(None)
+    is_negotiable: Optional[bool] = Field(None)
+    currency_id: Optional[int] = Field(None)
+    estimated_cost: Optional[float] = Field(None)
+    final_cost: Optional[float] = Field(None)
+    is_deleted: Optional[bool] = Field(None)
+
+    class Config:
+        from_attributes = True
+
+
 # ======================= STATUS SCHEMAS =======================
-
-
 
 
 class CreateStatusTracker(BaseModel):
@@ -219,7 +215,8 @@ class CreateStatusTracker(BaseModel):
 
     class Config:
         from_attributes = True
-        
+
+
 class UpdateStatusTracker(BaseModel):
     status: Optional[ShipmentStatus] = Field(None)
     current_location: Optional[str] = Field(None)
@@ -228,8 +225,6 @@ class UpdateStatusTracker(BaseModel):
 
     class Config:
         from_attributes = True
-
-
 
 
 class FetchStatus(BaseModel):
@@ -245,31 +240,38 @@ class FetchStatus(BaseModel):
 
     class Config:
         from_attributes = True
-#==========payment schema=============
+
+
+# ==========payment schema=============
+
 
 class PaymentMethod(str, Enum):
     CASH = "CASH"
     ONLINE = "ONLINE"
     WIRE_TRANSFER = "WIRE_TRANSFER"
 
+
 class PaymentStatus(str, Enum):
     PENDING = "PENDING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
+
 class CreatePayment(BaseModel):
     shipment_id: int
-    #package_id: int
+    # package_id: int
     payment_method: PaymentMethod
     payment_status: PaymentStatus
     payment_date: datetime
 
+
 class UpdatePayment(BaseModel):
     shipment_id: int = Field(None)
-    payment_method: PaymentMethod =Field(None)
-    payment_status: PaymentStatus =Field(None)
-    payment_date: datetime =Field(None)
-    is_deleted: bool =Field(None)
+    payment_method: PaymentMethod = Field(None)
+    payment_status: PaymentStatus = Field(None)
+    payment_date: datetime = Field(None)
+    is_deleted: bool = Field(None)
+
 
 class FetchPayment(BaseModel):
     id: int
@@ -279,5 +281,6 @@ class FetchPayment(BaseModel):
     payment_status: PaymentStatus
     payment_date: datetime
     is_deleted: bool
+
     class Config:
-     from_attributes = True
+        from_attributes = True

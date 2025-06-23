@@ -1,41 +1,69 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
-from shipment import views
-from fastapi import Request, Depends, Path
-from sqlalchemy.orm import Session
-from common.database import get_db
-from shipment.api.v1.models.status import ShipmentStatus
-from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage,FetchPackage, CreatePayment, UpdatePayment, FetchPayment
-from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage,FetchPackage, UpdatePackage
-from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage, CreateShipment,FetchPackage, UpdatePackage
-from shipment.api.v1.schemas.shipment import (
-    CreateCurrency,
-    CreatePackage,
-    CreateShipment,
-    FetchPackage,
-    UpdatePackage,
-    CreateStatusTracker,
-    UpdateStatusTracker,
-)
-from typing import Optional, List
-
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Path, Request
 from sqlalchemy.orm import Session
 from typing import Optional, List
 
 from common.database import get_db
 from shipment import views
+from shipment.views import PaymentService
+from shipment.api.v1.models.status import ShipmentStatus
 from shipment.api.v1.schemas.shipment import (
     CreateCurrency,
-    CreatePackage,
-    CreateShipment,
-    UpdatePackage,
-    FetchPackage,
     FetchCurrency,
+    UpdateCurrency,
+    CreatePackage,
+    FetchPackage,
+    UpdatePackage,
+    CreateShipment,
     UpdateShipment,
+    CreateStatusTracker,
+    UpdateStatusTracker,
+    CreatePayment,
+    FetchPayment,
+    UpdatePayment,
 )
 
+
 shipment_router = APIRouter()
-from shipment.views import PaymentService
+
+
+# =============================== CURRENCY =======================================
+
+
+@shipment_router.post("/create_currency/", response_model=FetchCurrency)
+def create_currency(request: CreateCurrency, db: Session = Depends(get_db)):
+    return views.CurrencyService.create_currency(request, db)
+
+
+@shipment_router.get("/currencies/", response_model=List[FetchCurrency])
+def get_currency(db: Session = Depends(get_db)):
+    # """Fetch all currencies."""
+    return views.CurrencyService.get_currency(db)
+
+
+@shipment_router.get("/currencies/{currency_id}", response_model=FetchCurrency)
+def get_currency_by_id(
+    currency_id: int = Path(..., description="The ID of the currency to retrieve"),
+    db: Session = Depends(get_db),
+):
+    # """Fetch a single currency by ID."""
+    return views.CurrencyService.get_currency_by_id(currency_id, db)
+
+
+@shipment_router.patch("/update_currency/{currency_id}", response_model=FetchCurrency)
+def update_currency(
+    currency_id: int = Path(..., description="The ID of the currency to update"),
+    request: UpdateCurrency = Body(...),
+    db: Session = Depends(get_db),
+):    
+    return views.CurrencyService.update_currency(currency_id, request, db)
+
+@shipment_router.put("/replace_currency/{currency_id}", response_model=FetchCurrency)
+def replace_currency(
+    currency_id: int = Path(..., description="The ID of the currency to update"),
+    request: CreateCurrency = Body(...),
+    db: Session = Depends(get_db),
+):    
+    return views.CurrencyService.replace_currency(currency_id, request, db) 
 
 
 # ================================ SHIPMENT =====================================
@@ -45,17 +73,10 @@ from shipment.views import PaymentService
 def create_shipment(request: CreateShipment, db: Session = Depends(get_db)):
     return views.ShipmentService.create_shipment(request, db)
 
-@shipment_router.patch("/update_currency/{currency_id}")
-def update_currency(
-    currency_id: int,
-    request: CreateCurrency,
-    db: Session = Depends(get_db)
-):
-    return views.CurrencyService.update_currency(currency_id, request, db)
-
 
 @shipment_router.get("/shipments/")
 def get_shipments(
+    user_id: Optional[int] = Query(default=None),
     package_type: Optional[str] = Query(default=None),
     currency_id: Optional[int] = Query(default=None),
     is_negotiable: Optional[bool] = Query(default=None),
@@ -66,6 +87,7 @@ def get_shipments(
 ):
     return views.ShipmentService.get_shipments(
         db=db,
+        user_id=user_id,
         package_type=package_type,
         currency_id=currency_id,
         is_negotiable=is_negotiable,
@@ -132,8 +154,6 @@ def get_package_by_id(
     return views.PackageService.get_package_by_id(package_id, db)
 
 
-
-
 @shipment_router.patch("/update_package/{package_id}")
 def patch_package(
     package_id: int,
@@ -150,6 +170,7 @@ def patch_package(
 @shipment_router.post("/create_status_tracker/")
 def create_status_tracker(request: CreateStatusTracker, db: Session = Depends(get_db)):
     return views.StatusTrackerService.create_status_tracker(request, db)
+
 
 @shipment_router.get("/status/")
 def get_status(
@@ -171,6 +192,7 @@ def get_status(
         limit=limit,
     )
 
+
 @shipment_router.get("/status/{status_id}")
 def get_status_by_id(
     status_id: int,
@@ -187,47 +209,37 @@ def update_status_tracker(
 ):
     return views.StatusTrackerService.update_status_tracker(
         status_id=status_id, status_data=request, db=db
-)
+    )
+
 
 @shipment_router.patch("/delete_status/{status_id}")
 def delete_shipment(status_id: int, db: Session = Depends(get_db)):
     return views.StatusTrackerService.delete_shipment(status_id, db)
 
-# =============================== CURRENCY =======================================
 
 
-@shipment_router.post("/create_currency/")
-def create_currency(request: CreateCurrency, db: Session = Depends(get_db)):
-    return views.CurrencyService.create_currency(request, db)
 
 
-@shipment_router.get("/currencies/", response_model=List[FetchCurrency])
-def get_currencies(db: Session = Depends(get_db)):
-    """Fetch all currencies."""
-    return views.CurrencyService.get_currencies(db)
 
+# ==========payment=============
 
-@shipment_router.get("/currencies/{currency_id}", response_model=FetchCurrency)
-def get_currency_by_id(
-    currency_id: int = Path(..., description="The ID of the currency to retrieve"),
-    db: Session = Depends(get_db),
-):
-    """Fetch a single currency by ID."""
-    return views.CurrencyService.get_currency_by_id(currency_id, db)
-
-#==========payment=============
 
 @shipment_router.post("/create_payment/", response_model=FetchPayment)
 def create_payment(request: CreatePayment, db: Session = Depends(get_db)):
     return PaymentService.create_payment(request, db)
 
+
 @shipment_router.get("/get_payment/{payment_id}", response_model=FetchPayment)
 def get_payment(payment_id: int, db: Session = Depends(get_db)):
     return PaymentService.get_payment_by_id(payment_id, db)
 
+
 @shipment_router.patch("/update_payment/{payment_id}", response_model=FetchPayment)
-def update_payment(payment_id: int, request: UpdatePayment, db: Session = Depends(get_db)):
+def update_payment(
+    payment_id: int, request: UpdatePayment, db: Session = Depends(get_db)
+):
     return PaymentService.update_payment(payment_id, request, db)
+
 
 @shipment_router.patch("/disable_package/{package_id}")
 def disable_package(package_id: int, db: Session = Depends(get_db)):
