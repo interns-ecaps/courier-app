@@ -24,6 +24,7 @@ from user.api.v1.schemas.user import (
     FetchCountry,
     FetchUser,
     ReplaceUser,
+    UpdateCountry,
     UpdateUser,
     SignUpRequest,
 )
@@ -120,17 +121,26 @@ def delete_address(
     return AddressService.soft_delete_address(address_id, db)
 
 
-
-#country
-@user_router.post("/countries/")
+@user_router.post("/create_country/", response_model=FetchCountry)
 def create_country(country: CreateCountry, db: Session = Depends(get_db)):
     return CountryService.create_country(country, db)
 
-@user_router.get("/countries/", response_model=List[FetchCountry])
-def get_all_countries(db: Session = Depends(get_db)):
-    return CountryService.get_all_countries(db)
+@user_router.get("/countries/")
+def get_all_countries(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1),
+    db: Session = Depends(get_db)
+):
+    return CountryService.get_all_countries(db=db, page=page, limit=limit)
 
 @user_router.get("/countries/{country_id}", response_model=FetchCountry)
 def get_country_by_id(country_id: int = Path(...), db: Session = Depends(get_db)):
     return CountryService.get_country_by_id(country_id, db)
 
+@user_router.put("/replace_country/{country_id}", response_model=FetchCountry)
+def replace_country(country_id: int, new_data: CreateCountry, db: Session = Depends(get_db)):
+    return CountryService.replace_country(country_id, new_data, db)
+
+@user_router.patch("/update_country/{country_id}", response_model=FetchCountry)
+def update_country(country_id: int, country_data: UpdateCountry, db: Session = Depends(get_db)):
+    return CountryService.update_country(country_id, country_data, db)

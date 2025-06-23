@@ -34,10 +34,14 @@ def create_currency(request: CreateCurrency, db: Session = Depends(get_db)):
     return views.CurrencyService.create_currency(request, db)
 
 
-@shipment_router.get("/currencies/", response_model=List[FetchCurrency])
-def get_currency(db: Session = Depends(get_db)):
-    # """Fetch all currencies."""
-    return views.CurrencyService.get_currency(db)
+@shipment_router.get("/currencies/")
+def get_currencies(
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=10, ge=1),
+    db: Session = Depends(get_db),
+):
+    return views.CurrencyService.get_currency(db=db, page=page, limit=limit)
+
 
 
 @shipment_router.get("/currencies/{currency_id}", response_model=FetchCurrency)

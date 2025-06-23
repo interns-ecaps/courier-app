@@ -59,9 +59,20 @@ class CurrencyService:
 
 
     @staticmethod
-    def get_currency(db: Session):
-        return db.query(Currency).filter(Currency.is_deleted == False).all()
-
+    def get_currency(
+        db: Session,
+        page: int = 1,
+        limit: int = 10
+        ):
+        query = db.query(Currency).filter(Currency.is_deleted == False)
+        total = query.count()
+        currencies = query.offset((page - 1) * limit).limit(limit).all()
+        return {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "results": currencies
+        }
     @staticmethod
     def get_currency_by_id(currency_id: int, db: Session):
         currency = (
@@ -73,22 +84,23 @@ class CurrencyService:
             raise HTTPException(status_code=404, detail="Currency not found")
         return currency
 
-    def update_currency(currency_id: int, new_data: UpdateCurrency, db: Session):
-        currency = (
-            db.query(Currency)
-            .filter(Currency.id == currency_id, Currency.is_deleted == False)
-            .first()
-        )
-        if not currency:
-            raise HTTPException(status_code=404, detail="Currency not found")
-        existing = db.query(Currency).filter(Currency.name == new_data.currency).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Currency already exists")
-        if not new_data.currency or new_data.currency.strip() == "":
-            raise HTTPException(
-                status_code=400, detail="Currency value cannot be null or empty"
-            )
-        currency.currency = new_data.currency
+    def update_currency(currency_id: int, currency_data: UpdateCurrency, db: Session):
+        currency = db.query(Currency).filter(Currency.id == currency_id, Currency.is_deleted == False).first()
+        
+        if currency_data.is_deleted is not None:
+            currency.is_deleted = currency_data.is_deleted
+
+        else:
+            if not currency:
+                raise HTTPException(status_code=404, detail="Currency not found")
+            existing = db.query(Currency).filter(Currency.currency == currency_data.currency).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="Currency already exists")
+            if not currency_data.currency or currency_data.currency.strip() == "":
+                raise HTTPException(
+                    status_code=400, detail="Currency value cannot be null or empty"
+                )
+            currency.currency = currency_data.currency
         db.commit()
         db.refresh(currency)
         return currency
@@ -101,7 +113,7 @@ class CurrencyService:
         )
         if not currency:
             raise HTTPException(status_code=404, detail="Currency not found")
-        existing = db.query(Currency).filter(Currency.name == new_data.currency).first()
+        existing = db.query(Currency).filter(Currency.currency == new_data.currency).first()
         if existing:
             raise HTTPException(status_code=400, detail="Currency already exists")
         if not new_data.currency or new_data.currency.strip() == "":
@@ -114,19 +126,22 @@ class CurrencyService:
         return currency
 
 
+#==================== PACKAGE SERVICE =======================
+
 class ShipmentService:
     def create_shipment(shipment_data: CreateShipment, db: Session):
         # Validate sender
         sender = (
             db.query(User)
-            .filter(User.id == shipment_data.sender_id, User.is_deleted == False)
+            .filter(
+                User.id == shipment_data.sender_id,
+                User.is_deleted == False,
+                User.is_active == True  # <--- moved here
+            )
             .first()
         )
         if not sender:
-            raise HTTPException(status_code=400, detail="Sender not found")
-        sender = sender.filter(User.is_active == True).first()
-        if not sender:
-            raise HTTPException(status_code=400, detail="Sender not active")
+            raise HTTPException(status_code=400, detail="Sender not found or inactive")
 
         # Validate pickup address ownership
         pickup_address_id = (
@@ -146,14 +161,16 @@ class ShipmentService:
         # Validate recipient
         recipient = (
             db.query(User)
-            .filter(User.id == shipment_data.recipient_id, User.is_deleted == False)
+            .filter(
+                User.id == shipment_data.recipient_id,
+                User.is_deleted == False,
+                User.is_active == True
+            )
             .first()
         )
         if not recipient:
-            raise HTTPException(status_code=400, detail="Recipient not found")
-        recipient = recipient.filter(User.is_active == True).first()
-        if not recipient:
-            raise HTTPException(status_code=400, detail="Recipient not active")
+            raise HTTPException(status_code=400, detail="Recipient not found or inactive")
+
         # Validate delivery address ownership
         delivery_address_id = (
             db.query(Address)
@@ -180,14 +197,15 @@ class ShipmentService:
 
         courier = (
             db.query(User)
-            .filter(User.id == shipment_data.courier_id, User.is_deleted == False)
+            .filter(
+                User.id == shipment_data.courier_id,
+                User.is_deleted == False,
+                User.is_active == True
+            )
             .first()
         )
         if not courier:
-            raise HTTPException(status_code=400, detail="Courier not found")
-        courier = courier.filter(User.is_active == True).first()
-        if not courier:
-            raise HTTPException(status_code=400, detail="Courier not active")
+            raise HTTPException(status_code=400, detail="Courier not found or inactive")
 
         # Validate package
         package = (
@@ -263,16 +281,6 @@ class ShipmentService:
             raise HTTPException(status_code=404, detail="Shipment not found")
 
         return FetchShipment.model_validate(shipment)
-
-    # @staticmethod
-    # def delete_shipment(shipment_id: int, db: Session):
-    #     shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
-    #     if not shipment:
-    #         raise HTTPException(status_code=404, detail="Shipment not found")
-
-    #     shipment.is_deleted = True
-    #     db.commit()
-    #     return {"message": "Shipment deleted successfully"}
 
     @staticmethod
     def update_shipment(shipment_id: int, shipment_data: UpdateShipment, db: Session):
