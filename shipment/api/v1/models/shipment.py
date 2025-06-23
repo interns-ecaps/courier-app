@@ -107,6 +107,3 @@ class Shipment(Base):
     status = relationship("StatusTracker", back_populates="shipment")
 
     packages = relationship("Package", back_populates="shipment", cascade="all, delete-orphan", single_parent=True)
-
-
-    
