@@ -14,29 +14,9 @@ from common.config import settings
 from shipment.api.v1.models.package import PackageType
 from shipment.api.v1.models.shipment import ShipmentType
 
-from shipment.api.v1.models.shipment import ShipmentType 
+from shipment.api.v1.models.shipment import ShipmentType
+from shipment.api.v1.models.status import ShipmentStatus 
 
-class CreateShipment(BaseModel):
-    sender_id : int
-    sender_name : str
-    sender_phone : str
-    sender_email : str
-    pickup_address : int
-    recipient_id : int
-    recipient_name : str
-    recipient_phone : str
-    recipient_email : str
-    delivery_address : int
-    courier_id : int
-    shipment_type : ShipmentType
-    package_id : int
-    pickup_date : datetime
-    special_instructions : str
-    insurance_required : bool
-    signature_required : bool
-
-    class Config:
-        from_attributes = True
 
 # ======================= CURRENCY SCHEMAS =======================
 
@@ -79,6 +59,7 @@ class FetchPackage(BaseModel):
     height: float
     is_negotiable: bool
     currency_id: int
+    is_deleted: bool
 
     class Config:
         from_attributes = True
@@ -94,6 +75,7 @@ class UpdatePackage(BaseModel):
     currency_id: Optional[int] = Field(None)
     estimated_cost: Optional[float] = Field(None)
     final_cost: Optional[float] = Field(None)
+    is_deleted: Optional[bool] = Field(None)
 
     class Config:
         from_attributes = True
@@ -121,29 +103,19 @@ class CreateShipment(BaseModel):
     signature_required: bool
 
     class Config:
-        orm_mode = True
-
-
-
-class CreateStatusTracker(BaseModel):
-    shipment_id: int
-    package_id: int
-    status: str
-    current_location: str
-    # is_delivered: bool
-
-    class Config:
         from_attributes = True
 
 
-class ShipmentFilter(BaseModel):
-    package_type: Optional[str] = None
-    currency_id: Optional[int] = None
-    is_negotiable: Optional[bool] = None
-    shipment_type: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+
+# class ShipmentFilter(BaseModel):
+#     package_type: Optional[str] = None
+#     currency_id: Optional[int] = None
+#     is_negotiable: Optional[bool] = None
+#     shipment_type: Optional[str] = None
+
+#     class Config:
+#         from_attributes = True
 
 
 class FetchShipment(BaseModel):
@@ -182,6 +154,7 @@ class FetchShipment(BaseModel):
 
     # Related package
     package_id: int
+    is_deleted: bool
 
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
@@ -192,37 +165,77 @@ class FetchShipment(BaseModel):
 
 class UpdateShipment(BaseModel):
     # Sender info
-    sender_id: Optional[int]
-    sender_name: Optional[str]
-    sender_phone: Optional[str]
-    sender_email: Optional[EmailStr]
+    sender_id: Optional[int] = Field(None)
+    sender_name: Optional[str] = Field(None)
+    sender_phone: Optional[str] = Field(None)
+    sender_email: Optional[EmailStr] = Field(None)
 
     # Recipient info
-    recipient_id: Optional[int]
-    recipient_name: Optional[str]
-    recipient_phone: Optional[str]
-    recipient_email: Optional[EmailStr]
+    recipient_id: Optional[int] = Field(None)
+    recipient_name: Optional[str] = Field(None)
+    recipient_phone: Optional[str] = Field(None)
+    recipient_email: Optional[EmailStr] = Field(None)
 
     # Courier and address info
-    courier_id: Optional[int]
-    pickup_address_id: Optional[int]
-    delivery_address_id: Optional[int]
+    courier_id: Optional[int] = Field(None)
+    pickup_address_id: Optional[int] = Field(None)
+    delivery_address_id: Optional[int] = Field(None)
 
     # Shipment details
-    shipment_type: Optional[ShipmentType]
+    shipment_type: Optional[ShipmentType] = Field(None)
 
     # Dates
-    pickup_date: Optional[datetime]
-    delivery_date: Optional[datetime]
-    estimated_delivery: Optional[datetime]
+    pickup_date: Optional[datetime] = Field(None)
+    delivery_date: Optional[datetime] = Field(None)
+    estimated_delivery: Optional[datetime] = Field(None)
 
     # Extra info
-    special_instructions: Optional[str]
-    insurance_required: Optional[bool]
-    signature_required: Optional[bool]
+    special_instructions: Optional[str] = Field(None)
+    insurance_required: Optional[bool] = Field(None)
+    signature_required: Optional[bool] = Field(None)
 
     # Related package
-    package_id: Optional[int]
+    package_id: Optional[int] = Field(None)
+    is_deleted: Optional[bool] = Field(None)
+
+    class Config:
+        from_attributes = True
+
+
+# ======================= STATUS SCHEMAS =======================
+
+
+
+
+class CreateStatusTracker(BaseModel):
+    shipment_id: int
+    # package_id: int
+
+    class Config:
+        from_attributes = True
+        
+class UpdateStatusTracker(BaseModel):
+    status: Optional[ShipmentStatus] = Field(None)
+    current_location: Optional[str] = Field(None)
+    is_delivered: Optional[bool] = Field(None)
+    is_deleted: Optional[bool] = Field(None)
+
+    class Config:
+        from_attributes = True
+
+
+
+
+class FetchStatus(BaseModel):
+    id: int
+    shipment_id: int
+    package_id: Optional[int] = None  # If your model supports package-level status
+    status: ShipmentStatus
+    current_location: Optional[str]
+    is_delivered: bool
+    is_deleted: bool
+    updated_at: Optional[datetime]
+    created_at: Optional[datetime]
 
     class Config:
         from_attributes = True

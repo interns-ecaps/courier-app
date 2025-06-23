@@ -3,13 +3,15 @@ from shipment import views
 from fastapi import Request, Depends, Path
 from sqlalchemy.orm import Session
 from common.database import get_db
+from shipment.api.v1.models.status import ShipmentStatus
 from shipment.api.v1.schemas.shipment import (
     CreateCurrency,
     CreatePackage,
     CreateShipment,
     FetchPackage,
     UpdatePackage,
-    CreateStatusTracker
+    CreateStatusTracker,
+    UpdateStatusTracker,
 )
 from typing import Optional, List
 
@@ -69,19 +71,17 @@ def get_shipment_by_id(
 
 
 @shipment_router.patch("/update_shipment/{shipment_id}")
-def patch_package(
+def patch_shipment(
     shipment_id: int,
     request: UpdateShipment = Body(...),
     db: Session = Depends(get_db),
 ):
-    print(request.dict(exclude_unset=False))
-    return views.PackageService.update_package(shipment_id, request, db)
+    return views.ShipmentService.update_shipment(shipment_id, request, db)
 
 
-@shipment_router.patch("/delete_shipment/{shipment_id}")
-def delete_shipment(shipment_id: int, db: Session = Depends(get_db)):
-    return views.ShipmentService.delete_shipment(shipment_id, db)
-
+# @shipment_router.patch("/delete_shipment/{shipment_id}")
+# def delete_shipment(shipment_id: int, db: Session = Depends(get_db)):
+#     return views.ShipmentService.delete_shipment(shipment_id, db)
 
 
 # =============================== PACKAGE =======================================
@@ -136,12 +136,53 @@ def patch_package(
 
 # ============================= STATUS TRACKER ===================================
 
+
 @shipment_router.post("/create_status_tracker/")
-def create_status_tracker(
-    request: CreateStatusTracker,
-    db: Session = Depends(get_db)
+def create_status_tracker(request: CreateStatusTracker, db: Session = Depends(get_db)):
+    return views.StatusTrackerService.create_status_tracker(request, db)
+
+@shipment_router.get("/status/")
+def get_status(
+    shipment_id: Optional[int] = Query(default=None),
+    package_id: Optional[int] = Query(default=None),
+    status: Optional[ShipmentStatus] = Query(default=None),
+    is_delivered: Optional[bool] = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=10, ge=1),
+    db: Session = Depends(get_db),
 ):
-    return views.create_status_tracker(request, db)
+    return views.StatusTrackerService.get_status(
+        db=db,
+        shipment_id=shipment_id,
+        package_id=package_id,
+        status=status,
+        is_delivered=is_delivered,
+        page=page,
+        limit=limit,
+    )
+
+@shipment_router.get("/status/{status_id}")
+def get_status_by_id(
+    status_id: int,
+    db: Session = Depends(get_db),
+):
+    return views.StatusTrackerService.get_status_by_id(status_id=status_id, db=db)
+
+
+@shipment_router.patch("/update_status_tracker/{status_id}")
+def update_status_tracker(
+    status_id: int,
+    request: UpdateStatusTracker = Body(...),
+    db: Session = Depends(get_db),
+):
+    return views.StatusTrackerService.update_status_tracker(
+        status_id=status_id, status_data=request, db=db
+)
+
+@shipment_router.patch("/delete_status/{status_id}")
+def delete_shipment(status_id: int, db: Session = Depends(get_db)):
+    return views.StatusTrackerService.delete_shipment(status_id, db)
+
 # =============================== CURRENCY =======================================
 
 
