@@ -87,37 +87,7 @@ class FetchPackage(BaseModel):
 
     class Config:
         orm_mode = True
-class PaymentMethod(str, Enum):
-    CASH = "CASH"
-    ONLINE = "ONLINE"
-    WIRE_TRANSFER = "WIRE_TRANSFER"
 
-class PaymentStatus(str, Enum):
-    PENDING = "PENDING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
-
-class CreatePayment(BaseModel):
-    shipment_id: int
-    package_id: int
-    payment_method: PaymentMethod
-    payment_status: PaymentStatus
-    payment_date: datetime
-
-class UpdatePayment(BaseModel):
-    payment_method: PaymentMethod
-    payment_status: PaymentStatus
-    payment_date: datetime
-
-class FetchPayment(BaseModel):
-    id: int
-    shipment_id: int
-    package_id: int
-    payment_method: PaymentMethod
-    payment_status: PaymentStatus
-    payment_date: datetime
-    class Config:
-     from_attributes = True
 
 
 class UpdatePackage(BaseModel):
@@ -262,3 +232,40 @@ class UpdateShipment(BaseModel):
 
     class Config:
         from_attributes = True
+
+#==========payment schema=============
+
+class PaymentMethod(str, Enum):
+    CASH = "CASH"
+    ONLINE = "ONLINE"
+    WIRE_TRANSFER = "WIRE_TRANSFER"
+
+class PaymentStatus(str, Enum):
+    PENDING = "PENDING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+class CreatePayment(BaseModel):
+    shipment_id: int
+    #package_id: int
+    payment_method: PaymentMethod
+    payment_status: PaymentStatus
+    payment_date: datetime
+
+class UpdatePayment(BaseModel):
+    shipment_id: int = Field(None)
+    payment_method: PaymentMethod =Field(None)
+    payment_status: PaymentStatus =Field(None)
+    payment_date: datetime =Field(None)
+    is_deleted: bool =Field(None)
+
+class FetchPayment(BaseModel):
+    id: int
+    shipment_id: int
+    package_id: int
+    payment_method: PaymentMethod
+    payment_status: PaymentStatus
+    payment_date: datetime
+    is_deleted: bool
+    class Config:
+     from_attributes = True
