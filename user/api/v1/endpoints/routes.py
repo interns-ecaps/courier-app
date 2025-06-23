@@ -6,10 +6,11 @@ from sqlalchemy.orm import Session
 from common.database import get_db
 from shipment.api.v1.endpoints import routes
 from user import views
+import user
 from user.api.v1.models.address import Address
 from user.views import CountryService, UserService, signup_user  # ✅ removed create_address
 from user.views import AddressService  # ✅ imported from correct file
-
+from core.decorators.token_required import token_required
 from user.api.v1.utils.auth import get_current_user
 from user.views import AddressService
 
@@ -43,6 +44,7 @@ class LoginRequest(BaseModel):
 
 
 @user_router.get("/read_profile/")
+@token_required
 def read_profile(current_user: dict = Depends(get_current_user)):
     return {"message": "Access granted", "user": current_user}
 
@@ -63,6 +65,7 @@ def create_user(request: CreateUser, db: Session = Depends(get_db)):
 
 
 @user_router.get("/get_user/", response_model=list[FetchUser])
+@token_required
 def get_users(
     user_id: int = None,
     email: str = None,
@@ -86,6 +89,7 @@ def get_users(
 
 
 @user_router.patch("/update_user/{user_id}")
+@token_required
 def patch_user(
     user_id: int,
     request: UpdateUser = Body(...),  # <- ensures proper parsing of partial JSON
@@ -96,23 +100,28 @@ def patch_user(
 
 
 @user_router.put("/replace_user/{user_id}")
+@token_required
 def replace_user(user_id: int, request: ReplaceUser, db: Session = Depends(get_db)):
     return UserService.replace_user(user_id, request, db)
 
 
 @user_router.patch("/disable_user/{user_id}")
+@token_required
 def disable_user(user_id: int, db: Session = Depends(get_db)):
     return UserService.disable_user(user_id, db) 
 
 
 @user_router.post("/addresses/", response_model=FetchAddress, status_code=201)
+@token_required
 def create_address_route(payload: CreateAddress, db: Session = Depends(get_db)):
     return AddressService.create_address(payload, db)
 
 @user_router.get("/addresses", response_model=FetchAddress)
+@token_required
 def get_address(id: int = Query(...), db: Session = Depends(get_db)):
     return AddressService.get_address_by_id(id, db)
 @user_router.delete("/addresses", status_code=200)
+@token_required
 def delete_address(
     address_id: int = Query(..., alias="id", description="ID of the address to soft delete"),
     db: Session = Depends(get_db),
@@ -123,14 +132,17 @@ def delete_address(
 
 #country
 @user_router.post("/countries/")
+@token_required
 def create_country(country: CreateCountry, db: Session = Depends(get_db)):
     return CountryService.create_country(country, db)
 
 @user_router.get("/countries/", response_model=List[FetchCountry])
+@token_required
 def get_all_countries(db: Session = Depends(get_db)):
     return CountryService.get_all_countries(db)
 
 @user_router.get("/countries/{country_id}", response_model=FetchCountry)
+@token_required
 def get_country_by_id(country_id: int = Path(...), db: Session = Depends(get_db)):
     return CountryService.get_country_by_id(country_id, db)
 

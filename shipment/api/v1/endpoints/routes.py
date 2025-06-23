@@ -3,6 +3,7 @@ from shipment import views
 from fastapi import Request, Depends, Path
 from sqlalchemy.orm import Session
 from common.database import get_db
+from core.decorators.token_required import token_required
 from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage,FetchPackage, CreatePayment, UpdatePayment, FetchPayment
 from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage,FetchPackage, UpdatePackage
 from shipment.api.v1.schemas.shipment import CreateCurrency, CreatePackage, CreateShipment,FetchPackage, UpdatePackage
@@ -40,10 +41,12 @@ from shipment.views import PaymentService
 
 
 @shipment_router.post("/create_shipment/")
+@token_required
 def create_shipment(request: CreateShipment, db: Session = Depends(get_db)):
     return views.ShipmentService.create_shipment(request, db)
 
 @shipment_router.patch("/update_currency/{currency_id}")
+@token_required
 def update_currency(
     currency_id: int,
     request: CreateCurrency,
@@ -53,6 +56,7 @@ def update_currency(
 
 
 @shipment_router.get("/shipments/")
+@token_required
 def get_shipments(
     package_type: Optional[str] = Query(default=None),
     currency_id: Optional[int] = Query(default=None),
@@ -74,6 +78,7 @@ def get_shipments(
 
 
 @shipment_router.get("/shipments/{shipment_id}")
+@token_required
 def get_shipment_by_id(
     shipment_id: int,
     db: Session = Depends(get_db),
@@ -82,6 +87,7 @@ def get_shipment_by_id(
 
 
 @shipment_router.patch("/update_shipment/{shipment_id}")
+@token_required
 def patch_package(
     shipment_id: int,
     request: UpdateShipment = Body(...),
@@ -92,6 +98,7 @@ def patch_package(
 
 
 @shipment_router.patch("/delete_shipment/{shipment_id}")
+@token_required
 def delete_shipment(shipment_id: int, db: Session = Depends(get_db)):
     return views.ShipmentService.delete_shipment(shipment_id, db)
 
@@ -101,11 +108,13 @@ def delete_shipment(shipment_id: int, db: Session = Depends(get_db)):
 
 
 @shipment_router.post("/create_package/")
+@token_required
 def create_package(request: CreatePackage, db: Session = Depends(get_db)):
     return views.PackageService.create_package(request, db)
 
 
 @shipment_router.get("/packages/")
+@token_required
 def get_packages(
     package_type: Optional[str] = Query(default=None),
     currency_id: Optional[int] = Query(default=None),
@@ -125,6 +134,7 @@ def get_packages(
 
 
 @shipment_router.get("/packages/{package_id}", response_model=FetchPackage)
+@token_required
 def get_package_by_id(
     package_id: int = Path(..., description="The ID of the package to retrieve"),
     db: Session = Depends(get_db),
@@ -135,6 +145,7 @@ def get_package_by_id(
 
 
 @shipment_router.patch("/update_package/{package_id}")
+@token_required
 def patch_package(
     package_id: int,
     request: UpdatePackage = Body(...),
@@ -147,6 +158,7 @@ def patch_package(
 # ============================= STATUS TRACKER ===================================
 
 @shipment_router.post("/create_status_tracker/")
+@token_required
 def create_status_tracker(
     request: CreateStatusTracker,
     db: Session = Depends(get_db)
@@ -156,17 +168,20 @@ def create_status_tracker(
 
 
 @shipment_router.post("/create_currency/")
+@token_required
 def create_currency(request: CreateCurrency, db: Session = Depends(get_db)):
     return views.CurrencyService.create_currency(request, db)
 
 
 @shipment_router.get("/currencies/", response_model=List[FetchCurrency])
+@token_required
 def get_currencies(db: Session = Depends(get_db)):
     """Fetch all currencies."""
     return views.CurrencyService.get_currencies(db)
 
 
 @shipment_router.get("/currencies/{currency_id}", response_model=FetchCurrency)
+@token_required
 def get_currency_by_id(
     currency_id: int = Path(..., description="The ID of the currency to retrieve"),
     db: Session = Depends(get_db),
@@ -177,17 +192,21 @@ def get_currency_by_id(
 #==========payment=============
 
 @shipment_router.post("/create_payment/", response_model=FetchPayment)
+@token_required
 def create_payment(request: CreatePayment, db: Session = Depends(get_db)):
     return PaymentService.create_payment(request, db)
 
 @shipment_router.get("/get_payment/{payment_id}", response_model=FetchPayment)
+@token_required
 def get_payment(payment_id: int, db: Session = Depends(get_db)):
     return PaymentService.get_payment_by_id(payment_id, db)
 
 @shipment_router.patch("/update_payment/{payment_id}", response_model=FetchPayment)
+@token_required
 def update_payment(payment_id: int, request: UpdatePayment, db: Session = Depends(get_db)):
     return PaymentService.update_payment(payment_id, request, db)
 
 @shipment_router.patch("/disable_package/{package_id}")
+@token_required
 def disable_package(package_id: int, db: Session = Depends(get_db)):
     return views.PackageService.disable_package(package_id, db)
