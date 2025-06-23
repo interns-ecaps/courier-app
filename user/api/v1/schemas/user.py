@@ -127,6 +127,31 @@ class CreateAddress(BaseModel):
 class FetchAddress(CreateAddress):
     id: int
 
+class UpdateAddress(BaseModel):
+    label: Optional[str] = None
+    street_address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country_code: Optional[int] = None
+    landmark: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    is_default: Optional[bool] = None
+    is_deleted: Optional[bool] = None  # ✅ Allow soft delete via update
+
+    model_config = {
+        "from_attributes": True
+    }
+
+
+    model_config = {
+        "from_attributes": True
+    }
+class ReplaceAddress(CreateAddress):
+        pass  # Inherits all fields from CreateAddress
+
+
 #-----------country--------------#
 class CreateCountry(BaseModel):
     # id: int

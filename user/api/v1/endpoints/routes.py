@@ -24,6 +24,7 @@ from user.api.v1.schemas.user import (
     FetchCountry,
     FetchUser,
     ReplaceUser,
+    UpdateAddress,
     UpdateUser,
     SignUpRequest,
 )
@@ -112,12 +113,25 @@ def create_address_route(payload: CreateAddress, db: Session = Depends(get_db)):
 @user_router.get("/addresses", response_model=FetchAddress)
 def get_address(id: int = Query(...), db: Session = Depends(get_db)):
     return AddressService.get_address_by_id(id, db)
-@user_router.delete("/addresses", status_code=200)
-def delete_address(
-    address_id: int = Query(..., alias="id", description="ID of the address to soft delete"),
+# @user_router.delete("/addresses", status_code=200)
+# def delete_address(
+#     address_id: int = Query(..., alias="id", description="ID of the address to soft delete"),
+#     db: Session = Depends(get_db),
+# ):
+    return AddressService.soft_delete_address(address_id, db)
+@user_router.patch("/addresses/{address_id}")
+def update_address(
+    address_id: int,
+    request: UpdateAddress,
     db: Session = Depends(get_db),
 ):
-    return AddressService.soft_delete_address(address_id, db)
+    return AddressService.update_address(address_id, request, db)
+
+@user_router.put("/addresses/{address_id}", response_model=FetchAddress)
+def replace_address_route(address_id: int, payload: CreateAddress, db: Session = Depends(get_db)):
+    return AddressService.replace_address(address_id, payload, db)
+
+
 
 
 

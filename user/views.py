@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from fastapi import HTTPException, status
+from fastapi import Depends, HTTPException, status
 
 from passlib.context import CryptContext
 
@@ -12,7 +12,7 @@ from common.config import settings
 
 from user.api.v1.utils.auth import create_access_token, create_refresh_token
 from user.api.v1.models.users import User
-from user.api.v1.schemas.user import CreateCountry, CreateUser, SignUpRequest, UpdateUser
+from user.api.v1.schemas.user import CreateCountry, CreateUser, FetchAddress, SignUpRequest, UpdateAddress, UpdateUser
 from user.api.v1.models.address import Address
 from user.api.v1.models.address import Country
 from user.api.v1.schemas.user import CreateAddress
@@ -254,22 +254,59 @@ class AddressService:
 
         return address
 
+    # @staticmethod
+    # def soft_delete_address(address_id: int, db: Session):
+    #     address = db.query(Address).filter(Address.id == address_id).first()
+
+    #     if not address:
+    #         raise HTTPException(status_code=404, detail="Address not found")
+
+    #     if address.is_deleted:
+    #         raise HTTPException(status_code=400, detail="Address is already deleted")
+
+    #     address.is_deleted = True
+    #     db.commit()
+    #     db.refresh(address)
+    #     return {"message": f"Address ID {address_id} has been soft deleted."}
     @staticmethod
-    def soft_delete_address(address_id: int, db: Session):
+    def update_address(address_id: int, update_data: UpdateAddress, db: Session):
+        address = db.query(Address).filter(Address.id == address_id).first()
+
+        if not address:
+            raise HTTPException(status_code=404, detail="Address not found")
+
+    # Handle is_deleted update separately
+        if address.is_deleted and (update_data.is_deleted is not True):
+            # Cannot update other fields of a soft-deleted address
+            raise HTTPException(
+                status_code=403,
+                detail="Address has been deleted and cannot be updated",
+        )
+
+        for field, value in update_data.dict(exclude_unset=True).items():
+            setattr(address, field, value)
+
+        db.commit()
+        db.refresh(address)
+        return {"message": "Address updated successfully", "address": address}
+    
+    @staticmethod
+    def replace_address(address_id: int, payload: CreateAddress, db: Session = Depends(get_db)):
         address = db.query(Address).filter(Address.id == address_id).first()
 
         if not address:
             raise HTTPException(status_code=404, detail="Address not found")
 
         if address.is_deleted:
-            raise HTTPException(status_code=400, detail="Address is already deleted")
+            raise HTTPException(status_code=403, detail="Address has been deleted")
 
-        address.is_deleted = True
+        for field, value in payload.dict().items():
+            setattr(address, field, value)
+
         db.commit()
         db.refresh(address)
-        return {"message": f"Address ID {address_id} has been soft deleted."}
- 
-    
+        return FetchAddress.model_validate(address)
+
 
 
 

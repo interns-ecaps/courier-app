@@ -224,5 +224,7 @@ class UpdateShipment(BaseModel):
     # Related package
     package_id: Optional[int]
 
+    is_deleted: Optional[bool]
+
     class Config:
         from_attributes = True
