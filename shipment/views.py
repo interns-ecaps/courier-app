@@ -329,7 +329,7 @@ class ShipmentService:
         return shipment
 
 
-#===========================PACKAGE SERVICE======================
+# ===========================PACKAGE SERVICE======================
 
 
 class PackageService:
@@ -447,6 +447,7 @@ class PackageService:
 
 # ========================= STATUS TRACKER SERVICE =========================
 
+
 class StatusTrackerService:
     def create_status_tracker(request: CreateStatusTracker, db: Session):
         # Validate shipment existence
@@ -462,7 +463,8 @@ class StatusTrackerService:
         )
         if existing_tracker:
             raise HTTPException(
-                status_code=400, detail="Status tracker already exists for this shipment"
+                status_code=400,
+                detail="Status tracker already exists for this shipment",
             )
 
         # Create the tracker
@@ -492,7 +494,9 @@ class StatusTrackerService:
         query = (
             db.query(StatusTracker)
             .filter(StatusTracker.is_deleted == False)
-            .options(joinedload(StatusTracker.shipment), joinedload(StatusTracker.package))
+            .options(
+                joinedload(StatusTracker.shipment), joinedload(StatusTracker.package)
+            )
         )
 
         if shipment_id:
@@ -516,15 +520,13 @@ class StatusTrackerService:
             "total": total,
             "results": [FetchStatus.model_validate(s) for s in status_records],
         }
-    
 
     @staticmethod
     def get_status_by_id(status_id: int, db: Session):
         status_record = (
             db.query(StatusTracker)
             .options(
-                joinedload(StatusTracker.shipment),
-                joinedload(StatusTracker.package)
+                joinedload(StatusTracker.shipment), joinedload(StatusTracker.package)
             )
             .filter(StatusTracker.id == status_id, StatusTracker.is_deleted == False)
             .first()
@@ -534,8 +536,6 @@ class StatusTrackerService:
             raise HTTPException(status_code=404, detail="Status record not found")
 
         return FetchStatus.model_validate(status_record)
-
-
 
     def update_status_tracker(
         status_id: int, status_data: UpdateStatusTracker, db: Session
@@ -573,7 +573,6 @@ class StatusTrackerService:
 
         return status
 
-
     def replace_status_tracker(status_id: int, new_data: ReplaceStatus, db: Session):
         status = (
             db.query(StatusTracker)
@@ -585,7 +584,9 @@ class StatusTrackerService:
             raise HTTPException(status_code=404, detail="Status record not found")
 
         # Validate new shipment
-        shipment = db.query(Shipment).filter(Shipment.id == new_data.shipment_id).first()
+        shipment = (
+            db.query(Shipment).filter(Shipment.id == new_data.shipment_id).first()
+        )
         if not shipment:
             raise HTTPException(status_code=400, detail="Shipment not found")
 
@@ -600,7 +601,8 @@ class StatusTrackerService:
         db.refresh(status)
         return status
 
-#============================PAYMENT SERVICE======================
+
+# ============================PAYMENT SERVICE======================
 
 
 class PaymentService:
@@ -680,15 +682,11 @@ class PaymentService:
             "results": [FetchPayment.model_validate(p) for p in payments],
         }
 
-
     @staticmethod
     def get_payment_by_id(payment_id: int, db: Session):
         payment = (
             db.query(Payment)
-            .options(
-                joinedload(Payment.shipment),
-                joinedload(Payment.package)
-            )
+            .options(joinedload(Payment.shipment), joinedload(Payment.package))
             .filter(Payment.id == payment_id, Payment.is_deleted == False)
             .first()
         )
@@ -744,4 +742,3 @@ class PaymentService:
         db.commit()
         db.refresh(payment)
         return payment
-

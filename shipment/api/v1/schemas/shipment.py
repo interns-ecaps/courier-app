@@ -164,7 +164,7 @@ class UpdateShipment(BaseModel):
     class Config:
         from_attributes = True
 
-    
+
 class ReplaceShipment(BaseModel):
     sender_id: int
     sender_name: int
@@ -282,7 +282,7 @@ class FetchStatus(BaseModel):
 
 class ReplaceStatus(BaseModel):
     shipment_id: int
-    package_id : int
+    package_id: int
     status: ShipmentStatus
     current_location: str
     is_delivered: bool
@@ -321,6 +321,7 @@ class FetchPayment(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class ReplacePayment(BaseModel):
     shipment_id: int
