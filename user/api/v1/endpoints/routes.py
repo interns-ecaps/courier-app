@@ -133,18 +133,4 @@ def replace_address_route(address_id: int, payload: CreateAddress, db: Session =
 
 
 
-
-
-#country
-@user_router.post("/countries/")
-def create_country(country: CreateCountry, db: Session = Depends(get_db)):
-    return CountryService.create_country(country, db)
-
-@user_router.get("/countries/", response_model=List[FetchCountry])
-def get_all_countries(db: Session = Depends(get_db)):
-    return CountryService.get_all_countries(db)
-
-@user_router.get("/countries/{country_id}", response_model=FetchCountry)
-def get_country_by_id(country_id: int = Path(...), db: Session = Depends(get_db)):
-    return CountryService.get_country_by_id(country_id, db)
-
+#===================== COUNTRIES ==========================

@@ -139,30 +139,14 @@ class UpdateAddress(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     is_default: Optional[bool] = None
-    is_deleted: Optional[bool] = None  # ✅ Allow soft delete via update
+    is_deleted: Optional[bool] = None  
 
     model_config = {
         "from_attributes": True
     }
 
-
-    model_config = {
-        "from_attributes": True
-    }
 class ReplaceAddress(CreateAddress):
         pass  # Inherits all fields from CreateAddress
 
 
-#-----------country--------------#
-class CreateCountry(BaseModel):
-    # id: int
-    name: str
-
-    model_config = {
-        "from_attributes": True
-    }
-
-
-class FetchCountry(CreateCountry):
-    created_at: Optional[str]
-    updated_at: Optional[str]
+#==========================COUNTRIES======================#

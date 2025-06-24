@@ -9,6 +9,15 @@ from passlib.context import CryptContext
 
 from common.database import SessionLocal
 from common.config import settings
+from user.api.v1.models.address import Address, Country
+from user.api.v1.schemas.user import CreateAddress
+from sqlalchemy.orm import Session
+
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+from user.api.v1.models.address import Address
+from user.api.v1.models.address import Country
+from user.api.v1.schemas.user import CreateAddress
 
 from user.api.v1.utils.auth import create_access_token, create_refresh_token
 from user.api.v1.models.users import User
@@ -190,29 +199,6 @@ class UserService:
         db.commit()
         db.refresh(user)
         return user
-    
-    def disable_user(user_id: int, db: Session):
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found.")
-
-        user.is_active = False
-        db.commit()
-        db.refresh(user)
-        return user
-from user.api.v1.models.address import Address, Country
-from user.api.v1.schemas.user import CreateAddress
-from sqlalchemy.orm import Session
-
-
-
-
-# user/views/address_service.py or similar
-from fastapi import HTTPException
-from sqlalchemy.orm import Session
-from user.api.v1.models.address import Address
-from user.api.v1.models.address import Country
-from user.api.v1.schemas.user import CreateAddress  # 👈 import your schema
 
 
 class AddressService:
@@ -290,46 +276,6 @@ class AddressService:
         db.refresh(address)
         return {"message": "Address updated successfully", "address": address}
     
-    @staticmethod
-    def replace_address(address_id: int, payload: CreateAddress, db: Session = Depends(get_db)):
-        address = db.query(Address).filter(Address.id == address_id).first()
-
-        if not address:
-            raise HTTPException(status_code=404, detail="Address not found")
-
-        if address.is_deleted:
-            raise HTTPException(status_code=403, detail="Address has been deleted")
-
-        for field, value in payload.dict().items():
-            setattr(address, field, value)
-
-        db.commit()
-        db.refresh(address)
-        return FetchAddress.model_validate(address)
-
-
-
 
     
-class CountryService:
-    @staticmethod
-    def create_country(country_data: CreateCountry, db: Session):
-        existing = db.query(Country).filter(Country.name == country_data.name).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Country already exists")
-        country = Country(**country_data.dict())
-        db.add(country)
-        db.commit()
-        db.refresh(country)
-        return country
-
-    @staticmethod
-    def get_all_countries(db: Session):
-        return db.query(Country).all()
-
-    @staticmethod
-    def get_country_by_id(country_id: int, db: Session):
-        country = db.query(Country).filter(Country.id == country_id).first()
-        if not country:
-            raise HTTPException(status_code=404, detail="Country not found")
-        return country
+#======================= COUNTRY =====================

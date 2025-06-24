@@ -22,138 +22,9 @@ from shipment.api.v1.models.status import ShipmentStatus
 # ======================= CURRENCY SCHEMAS =======================
 
 
-class CreateCurrency(BaseModel):
-    currency: str
-
-    class Config:
-        from_attributes = True
-
-
-class FetchCurrency(BaseModel):
-    id: int
-    currency: str
-    is_deleted: bool
-
-    class Config:
-        from_attributes = True
-
-
-class UpdateCurrency(BaseModel):
-    currency: Optional[str] = Field(None)
-    is_deleted: Optional[bool] = Field(None)
-
-    class Config:
-        from_attributes = True
-
 
 # ======================= SHIPMENT SCHEMAS =======================
 
-
-class CreateShipment(BaseModel):
-    sender_id: int
-    sender_name: str
-    sender_phone: str
-    sender_email: str
-    pickup_address_id: int
-    recipient_id: int
-    recipient_name: str
-    recipient_phone: str
-    recipient_email: str
-    delivery_address_id: int
-    courier_id: int
-    shipment_type: ShipmentType
-    package_id: int
-    pickup_date: datetime
-    special_instructions: str
-    insurance_required: bool
-    signature_required: bool
-
-    class Config:
-        from_attributes = True
-
-
-class FetchShipment(BaseModel):
-    id: int
-    tracking_number: str
-
-    # Sender info
-    sender_id: int
-    sender_name: str
-    sender_phone: str
-    sender_email: Optional[EmailStr]
-
-    # Recipient info
-    recipient_id: Optional[int]
-    recipient_name: str
-    recipient_phone: str
-    recipient_email: Optional[EmailStr]
-
-    # Courier and address info
-    courier_id: Optional[int]
-    pickup_address_id: int
-    delivery_address_id: int
-
-    # Shipment details
-    shipment_type: ShipmentType
-
-    # Dates
-    pickup_date: Optional[datetime]
-    delivery_date: Optional[datetime]
-    estimated_delivery: Optional[datetime]
-
-    # Extra info
-    special_instructions: Optional[str]
-    insurance_required: bool
-    signature_required: bool
-
-    # Related package
-    package_id: int
-    is_deleted: bool
-
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
-
-    class Config:
-        from_attributes = True
-
-
-class UpdateShipment(BaseModel):
-    # Sender info
-    sender_id: Optional[int] = Field(None)
-    sender_name: Optional[str] = Field(None)
-    sender_phone: Optional[str] = Field(None)
-    sender_email: Optional[EmailStr] = Field(None)
-
-    # Recipient info
-    recipient_id: Optional[int] = Field(None)
-    recipient_name: Optional[str] = Field(None)
-    recipient_phone: Optional[str] = Field(None)
-    recipient_email: Optional[EmailStr] = Field(None)
-
-    # Courier and address info
-    courier_id: Optional[int] = Field(None)
-    pickup_address_id: Optional[int] = Field(None)
-    delivery_address_id: Optional[int] = Field(None)
-
-    # Shipment details
-    shipment_type: Optional[ShipmentType] = Field(None)
-
-    # Dates
-    pickup_date: Optional[datetime] = Field(None)
-    delivery_date: Optional[datetime] = Field(None)
-    estimated_delivery: Optional[datetime] = Field(None)
-
-    # Extra info
-    special_instructions: Optional[str] = Field(None)
-    insurance_required: Optional[bool] = Field(None)
-    signature_required: Optional[bool] = Field(None)
-
-    # Related package
-    package_id: Optional[int] = Field(None)
-    is_deleted: Optional[bool] = Field(None)
-
-    class Config:
-        from_attributes = True
 
 
 # ======================= PACKAGE SCHEMAS ========================
@@ -177,13 +48,14 @@ class CreatePackage(BaseModel):
 class FetchPackage(BaseModel):
     id: int
     package_type: PackageType
-    package_type: PackageType
     weight: float
     length: float
     width: float
     height: float
     is_negotiable: bool
     currency_id: int
+    estimated_cost: Optional[float] = None
+    final_cost: Optional[float] = None
     is_deleted: bool
 
     class Config:
@@ -193,9 +65,9 @@ class FetchPackage(BaseModel):
 class UpdatePackage(BaseModel):
     package_type: Optional[PackageType] = Field(None)
     weight: Optional[float] = Field(None)
-    length: Optional[float] = Field(None)
-    width: Optional[float] = Field(None)
-    height: Optional[float] = Field(None)
+    length: Optional[str] = Field(None)
+    width: Optional[str] = Field(None)
+    height: Optional[str] = Field(None)
     is_negotiable: Optional[bool] = Field(None)
     currency_id: Optional[int] = Field(None)
     estimated_cost: Optional[float] = Field(None)
@@ -206,83 +78,22 @@ class UpdatePackage(BaseModel):
         from_attributes = True
 
 
+class ReplacePackage(BaseModel):
+    package_type:str
+    weight:float
+    length:float
+    width:float
+    height:float
+    is_negotiable:bool
+    currency_id:int
+    estimated_cost:float
+    final_cost:float
+    is_deleted:bool
+
+
+
 # ======================= STATUS SCHEMAS =======================
-
-
-class CreateStatusTracker(BaseModel):
-    shipment_id: int
-    # package_id: int
-
-    class Config:
-        from_attributes = True
-
-
-class UpdateStatusTracker(BaseModel):
-    status: Optional[ShipmentStatus] = Field(None)
-    current_location: Optional[str] = Field(None)
-    is_delivered: Optional[bool] = Field(None)
-    is_deleted: Optional[bool] = Field(None)
-
-    class Config:
-        from_attributes = True
-
-
-class FetchStatus(BaseModel):
-    id: int
-    shipment_id: int
-    package_id: Optional[int] = None  # If your model supports package-level status
-    status: ShipmentStatus
-    current_location: Optional[str]
-    is_delivered: bool
-    is_deleted: bool
-    updated_at: Optional[datetime]
-    created_at: Optional[datetime]
-
-    class Config:
-        from_attributes = True
-
 
 # ==========payment schema=============
 
 
-class PaymentMethod(str, Enum):
-    CASH = "CASH"
-    ONLINE = "ONLINE"
-    WIRE_TRANSFER = "WIRE_TRANSFER"
-
-
-class PaymentStatus(str, Enum):
-    PENDING = "PENDING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
-
-
-class CreatePayment(BaseModel):
-    shipment_id: int
-    # package_id: int
-    payment_method: PaymentMethod
-    payment_status: PaymentStatus
-    payment_date: datetime
-
-
-class UpdatePayment(BaseModel):
-    shipment_id: int = Field(None)
-    payment_method: PaymentMethod = Field(None)
-    payment_status: PaymentStatus = Field(None)
-    payment_date: datetime = Field(None)
-    is_deleted: bool = Field(None)
-
-
-class FetchPayment(BaseModel):
-    id: int
-    shipment_id: int
-    package_id: int
-    payment_method: PaymentMethod
-    payment_status: PaymentStatus
-    payment_date: datetime
-    is_deleted: bool
-
-    is_deleted: Optional[bool]
-
-    class Config:
-        from_attributes = True
