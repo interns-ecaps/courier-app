@@ -1,14 +1,10 @@
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field
-from pydantic import BaseModel
-from decimal import Decimal
 
+from pydantic import BaseModel, EmailStr, Field, constr
 
-
-from pydantic import BaseModel, EmailStr, constr, Field
-import re
 
 # Enum for user roles
 class UserType(str, Enum):
@@ -81,15 +77,12 @@ class FetchUser(BaseModel):
 class ReplaceUser(CreateUser):
     pass
 
+
 # class UpdateUser(BaseModel):
 #     is_active: bool
 
 #     class Config:
 #         from_attributes = True
-
-
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
 
 
 class SignUpRequest(BaseModel):
@@ -104,7 +97,7 @@ class SignUpRequest(BaseModel):
         from_attributes = True
 
 
-#-----------addresses--------------#
+# -----------addresses--------------#
 class CreateAddress(BaseModel):
     user_id: int
     label: Optional[str]
@@ -118,26 +111,30 @@ class CreateAddress(BaseModel):
     longitude: float
     is_default: bool = False
 
-    model_config = {
-        "from_attributes": True
-    }
-
-    
+    model_config = {"from_attributes": True}
 
 
 class FetchAddress(CreateAddress):
     id: int
 
-#-----------country--------------#
+
+# ===================== COUNTRIES =====================#
 class CreateCountry(BaseModel):
-    # id: int
     name: str
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}
 
 
 class FetchCountry(CreateCountry):
-    created_at: Optional[str]
-    updated_at: Optional[str]
+    id: int
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class UpdateCountry(BaseModel):
+    name: Optional[str] = None
+    is_deleted: Optional[bool] = None
+
+    model_config = {"from_attributes": True}

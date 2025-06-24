@@ -1,14 +1,20 @@
+from datetime import datetime
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Path, Request
 from sqlalchemy.orm import Session
 from typing import Optional, List
 
 from common.database import get_db
 from shipment import views
-from shipment.views import PaymentService
+from shipment.views import PaymentService, StatusTrackerService
 from shipment.api.v1.models.status import ShipmentStatus
 from shipment.api.v1.schemas.shipment import (
     CreateCurrency,
     FetchCurrency,
+    FetchStatus,
+    ReplaceCurrency,
+    ReplacePayment,
+    ReplaceShipment,
+    ReplaceStatus,
     UpdateCurrency,
     CreatePackage,
     FetchPackage,
@@ -34,10 +40,13 @@ def create_currency(request: CreateCurrency, db: Session = Depends(get_db)):
     return views.CurrencyService.create_currency(request, db)
 
 
-@shipment_router.get("/currencies/", response_model=List[FetchCurrency])
-def get_currency(db: Session = Depends(get_db)):
-    # """Fetch all currencies."""
-    return views.CurrencyService.get_currency(db)
+@shipment_router.get("/currencies/")
+def get_currencies(
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=10, ge=1),
+    db: Session = Depends(get_db),
+):
+    return views.CurrencyService.get_currency(db=db, page=page, limit=limit)
 
 
 @shipment_router.get("/currencies/{currency_id}", response_model=FetchCurrency)
@@ -54,16 +63,17 @@ def update_currency(
     currency_id: int = Path(..., description="The ID of the currency to update"),
     request: UpdateCurrency = Body(...),
     db: Session = Depends(get_db),
-):    
+):
     return views.CurrencyService.update_currency(currency_id, request, db)
+
 
 @shipment_router.put("/replace_currency/{currency_id}", response_model=FetchCurrency)
 def replace_currency(
     currency_id: int = Path(..., description="The ID of the currency to update"),
-    request: CreateCurrency = Body(...),
+    request: ReplaceCurrency = Body(...),
     db: Session = Depends(get_db),
-):    
-    return views.CurrencyService.replace_currency(currency_id, request, db) 
+):
+    return views.CurrencyService.replace_currency(currency_id, request, db)
 
 
 # ================================ SHIPMENT =====================================
@@ -114,9 +124,13 @@ def patch_shipment(
     return views.ShipmentService.update_shipment(shipment_id, request, db)
 
 
-# @shipment_router.patch("/delete_shipment/{shipment_id}")
-# def delete_shipment(shipment_id: int, db: Session = Depends(get_db)):
-#     return views.ShipmentService.delete_shipment(shipment_id, db)
+@shipment_router.put("/replace_shipment/{shipment_id}")
+def replace_shipment(
+    shipment_id: int,
+    request: ReplaceShipment = Body(...),
+    db: Session = Depends(get_db),
+):
+    return views.ShipmentService.replace_shipment(shipment_id, request, db)
 
 
 # =============================== PACKAGE =======================================
@@ -167,13 +181,13 @@ def patch_package(
 # ============================= STATUS TRACKER ===================================
 
 
-@shipment_router.post("/create_status_tracker/")
-def create_status_tracker(request: CreateStatusTracker, db: Session = Depends(get_db)):
-    return views.StatusTrackerService.create_status_tracker(request, db)
+@shipment_router.post("/create_status/", response_model=FetchStatus)
+def create_status(request: CreateStatusTracker, db: Session = Depends(get_db)):
+    return StatusTrackerService.create_status_tracker(request, db)
 
 
-@shipment_router.get("/status/")
-def get_status(
+@shipment_router.get("/statuses/")
+def get_statuses(
     shipment_id: Optional[int] = Query(default=None),
     package_id: Optional[int] = Query(default=None),
     status: Optional[ShipmentStatus] = Query(default=None),
@@ -182,7 +196,7 @@ def get_status(
     limit: int = Query(default=10, ge=1),
     db: Session = Depends(get_db),
 ):
-    return views.StatusTrackerService.get_status(
+    return StatusTrackerService.get_status(
         db=db,
         shipment_id=shipment_id,
         package_id=package_id,
@@ -193,40 +207,54 @@ def get_status(
     )
 
 
-@shipment_router.get("/status/{status_id}")
-def get_status_by_id(
-    status_id: int,
-    db: Session = Depends(get_db),
+@shipment_router.get("/get_status/{status_id}", response_model=FetchStatus)
+def get_status_by_id(status_id: int = Path(...), db: Session = Depends(get_db)):
+    return StatusTrackerService.get_status_by_id(status_id, db)
+
+
+@shipment_router.patch("/update_status/{status_id}", response_model=FetchStatus)
+def update_status(
+    status_id: int, request: UpdateStatusTracker, db: Session = Depends(get_db)
 ):
-    return views.StatusTrackerService.get_status_by_id(status_id=status_id, db=db)
+    return StatusTrackerService.update_status_tracker(status_id, request, db)
 
 
-@shipment_router.patch("/update_status_tracker/{status_id}")
-def update_status_tracker(
-    status_id: int,
-    request: UpdateStatusTracker = Body(...),
-    db: Session = Depends(get_db),
+@shipment_router.put("/replace_status/{status_id}", response_model=FetchStatus)
+def replace_status(
+    status_id: int, request: ReplaceStatus, db: Session = Depends(get_db)
 ):
-    return views.StatusTrackerService.update_status_tracker(
-        status_id=status_id, status_data=request, db=db
-    )
+    return StatusTrackerService.replace_status_tracker(status_id, request, db)
 
 
-@shipment_router.patch("/delete_status/{status_id}")
-def delete_shipment(status_id: int, db: Session = Depends(get_db)):
-    return views.StatusTrackerService.delete_shipment(status_id, db)
-
-
-
-
-
-
-# ==========payment=============
+# ===========================PAYMENT=============
 
 
 @shipment_router.post("/create_payment/", response_model=FetchPayment)
 def create_payment(request: CreatePayment, db: Session = Depends(get_db)):
     return PaymentService.create_payment(request, db)
+
+
+@shipment_router.get("/payments/")
+def get_payments(
+    shipment_id: Optional[int] = Query(default=None),
+    package_id: Optional[int] = Query(default=None),
+    payment_method: Optional[str] = Query(default=None),
+    payment_status: Optional[str] = Query(default=None),
+    payment_date: Optional[datetime] = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=10, ge=1),
+    db: Session = Depends(get_db),
+):
+    return views.PaymentService.get_payments(
+        db=db,
+        shipment_id=shipment_id,
+        package_id=package_id,
+        payment_method=payment_method,
+        payment_status=payment_status,
+        payment_date=payment_date,
+        page=page,
+        limit=limit,
+    )
 
 
 @shipment_router.get("/get_payment/{payment_id}", response_model=FetchPayment)
@@ -241,6 +269,8 @@ def update_payment(
     return PaymentService.update_payment(payment_id, request, db)
 
 
-@shipment_router.patch("/disable_package/{package_id}")
-def disable_package(package_id: int, db: Session = Depends(get_db)):
-    return views.PackageService.disable_package(package_id, db)
+@shipment_router.put("/replace_payment/{payment_id}", response_model=FetchPayment)
+def replace_payment(
+    payment_id: int, request: ReplacePayment, db: Session = Depends(get_db)
+):
+    return PaymentService.replace_payment(payment_id, request, db)

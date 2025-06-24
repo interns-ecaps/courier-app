@@ -13,6 +13,7 @@ from pydantic_settings import BaseSettings
 
 from common.config import settings
 from shipment.api.v1.models.package import PackageType
+from shipment.api.v1.models.payment import PaymentMethod, PaymentStatus
 from shipment.api.v1.models.shipment import ShipmentType
 
 from shipment.api.v1.models.shipment import ShipmentType
@@ -41,6 +42,14 @@ class FetchCurrency(BaseModel):
 class UpdateCurrency(BaseModel):
     currency: Optional[str] = Field(None)
     is_deleted: Optional[bool] = Field(None)
+
+    class Config:
+        from_attributes = True
+
+
+class ReplaceCurrency(BaseModel):
+    currency: str
+    is_deleted: bool
 
     class Config:
         from_attributes = True
@@ -156,6 +165,34 @@ class UpdateShipment(BaseModel):
         from_attributes = True
 
 
+class ReplaceShipment(BaseModel):
+    sender_id: int
+    sender_name: int
+    sender_phone: int
+    sender_email: EmailStr
+    pickup_address_id: int
+    recipient_id: int
+    recipient_name: str
+    recipient_phone: str
+    recipient_email: EmailStr
+    delivery_address_id: int
+    courier_id: int
+    package_id: int
+    shipment_type: ShipmentType
+    pickup_date: datetime
+    delivery_date: datetime
+    estimated_delivery: datetime
+    special_instructions: str
+    insurance_required: bool
+    signature_required: bool
+    created_at: datetime
+    updated_at: datetime
+    is_deleted: bool
+
+    class Config:
+        from_attributes = True
+
+
 # ======================= PACKAGE SCHEMAS ========================
 
 
@@ -211,13 +248,14 @@ class UpdatePackage(BaseModel):
 
 class CreateStatusTracker(BaseModel):
     shipment_id: int
-    # package_id: int
 
     class Config:
         from_attributes = True
 
 
 class UpdateStatusTracker(BaseModel):
+    shipment_id: Optional[int] = Field(None)
+    package_id: Optional[int] = Field(None)
     status: Optional[ShipmentStatus] = Field(None)
     current_location: Optional[str] = Field(None)
     is_delivered: Optional[bool] = Field(None)
@@ -230,13 +268,25 @@ class UpdateStatusTracker(BaseModel):
 class FetchStatus(BaseModel):
     id: int
     shipment_id: int
-    package_id: Optional[int] = None  # If your model supports package-level status
+    package_id: int
     status: ShipmentStatus
     current_location: Optional[str]
     is_delivered: bool
     is_deleted: bool
     updated_at: Optional[datetime]
-    created_at: Optional[datetime]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ReplaceStatus(BaseModel):
+    shipment_id: int
+    package_id: int
+    status: ShipmentStatus
+    current_location: str
+    is_delivered: bool
+    is_deleted: bool
 
     class Config:
         from_attributes = True
@@ -245,21 +295,8 @@ class FetchStatus(BaseModel):
 # ==========payment schema=============
 
 
-class PaymentMethod(str, Enum):
-    CASH = "CASH"
-    ONLINE = "ONLINE"
-    WIRE_TRANSFER = "WIRE_TRANSFER"
-
-
-class PaymentStatus(str, Enum):
-    PENDING = "PENDING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
-
-
 class CreatePayment(BaseModel):
     shipment_id: int
-    # package_id: int
     payment_method: PaymentMethod
     payment_status: PaymentStatus
     payment_date: datetime
@@ -275,6 +312,18 @@ class UpdatePayment(BaseModel):
 
 class FetchPayment(BaseModel):
     id: int
+    shipment_id: int
+    package_id: int
+    payment_method: PaymentMethod
+    payment_status: PaymentStatus
+    payment_date: datetime
+    is_deleted: bool
+
+    class Config:
+        from_attributes = True
+
+
+class ReplacePayment(BaseModel):
     shipment_id: int
     package_id: int
     payment_method: PaymentMethod
