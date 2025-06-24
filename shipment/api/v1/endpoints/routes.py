@@ -11,6 +11,10 @@ from shipment.api.v1.schemas.shipment import (
     CreateCurrency,
     FetchCurrency,
     FetchStatus,
+    ReplaceCurrency,
+    ReplacePayment,
+    ReplaceShipment,
+    ReplaceStatus,
     UpdateCurrency,
     CreatePackage,
     FetchPackage,
@@ -66,7 +70,7 @@ def update_currency(
 @shipment_router.put("/replace_currency/{currency_id}", response_model=FetchCurrency)
 def replace_currency(
     currency_id: int = Path(..., description="The ID of the currency to update"),
-    request: CreateCurrency = Body(...),
+    request: ReplaceCurrency = Body(...),
     db: Session = Depends(get_db),
 ):    
     return views.CurrencyService.replace_currency(currency_id, request, db) 
@@ -120,9 +124,14 @@ def patch_shipment(
     return views.ShipmentService.update_shipment(shipment_id, request, db)
 
 
-# @shipment_router.patch("/delete_shipment/{shipment_id}")
-# def delete_shipment(shipment_id: int, db: Session = Depends(get_db)):
-#     return views.ShipmentService.delete_shipment(shipment_id, db)
+@shipment_router.put("/replace_shipment/{shipment_id}")
+def replace_shipment(
+    shipment_id: int,
+    request: ReplaceShipment = Body(...),
+    db: Session = Depends(get_db),
+):
+    return views.ShipmentService.replace_shipment(shipment_id, request, db) 
+
 
 
 # =============================== PACKAGE =======================================
@@ -211,7 +220,7 @@ def update_status(
 
 
 @shipment_router.put("/replace_status/{status_id}", response_model=FetchStatus)
-def replace_status(status_id: int, request: CreateStatusTracker, db: Session = Depends(get_db)):
+def replace_status(status_id: int, request: ReplaceStatus, db: Session = Depends(get_db)):
     return StatusTrackerService.replace_status_tracker(status_id, request, db)
 
 
@@ -263,5 +272,5 @@ def update_payment(
     return PaymentService.update_payment(payment_id, request, db)
 
 @shipment_router.put("/replace_payment/{payment_id}", response_model=FetchPayment)
-def replace_payment(payment_id: int, request: CreatePayment, db: Session = Depends(get_db)):
+def replace_payment(payment_id: int, request: ReplacePayment, db: Session = Depends(get_db)):
     return PaymentService.replace_payment(payment_id, request, db)
