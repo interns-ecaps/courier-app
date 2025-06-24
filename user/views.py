@@ -13,7 +13,13 @@ from common.config import settings
 
 from user.api.v1.utils.auth import create_access_token, create_refresh_token
 from user.api.v1.models.users import User
-from user.api.v1.schemas.user import CreateCountry, CreateUser, SignUpRequest, UpdateCountry, UpdateUser
+from user.api.v1.schemas.user import (
+    CreateCountry,
+    CreateUser,
+    SignUpRequest,
+    UpdateCountry,
+    UpdateUser,
+)
 from user.api.v1.models.address import Address
 from user.api.v1.models.address import Country
 from user.api.v1.schemas.user import CreateAddress
@@ -191,7 +197,7 @@ class UserService:
         db.commit()
         db.refresh(user)
         return user
-    
+
     def disable_user(user_id: int, db: Session):
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
@@ -201,11 +207,11 @@ class UserService:
         db.commit()
         db.refresh(user)
         return user
+
+
 from user.api.v1.models.address import Address, Country
 from user.api.v1.schemas.user import CreateAddress
 from sqlalchemy.orm import Session
-
-
 
 
 # user/views/address_service.py or similar
@@ -220,7 +226,9 @@ class AddressService:
 
     @staticmethod
     def create_address(address_data: CreateAddress, db: Session):
-        country = db.query(Country).filter(Country.id == address_data.country_code).first()
+        country = (
+            db.query(Country).filter(Country.id == address_data.country_code).first()
+        )
         if not country:
             raise HTTPException(status_code=404, detail="Country not found")
 
@@ -235,7 +243,7 @@ class AddressService:
             latitude=address_data.latitude,
             longitude=address_data.longitude,
             is_default=address_data.is_default,
-            country=country
+            country=country,
         )
 
         db.add(address)
@@ -251,7 +259,9 @@ class AddressService:
             raise HTTPException(status_code=404, detail="Address not found")
 
         if address.is_deleted:
-            raise HTTPException(status_code=403, detail="Address has been deleted and cannot be fetched")
+            raise HTTPException(
+                status_code=403, detail="Address has been deleted and cannot be fetched"
+            )
 
         return address
 
@@ -269,21 +279,29 @@ class AddressService:
         db.commit()
         db.refresh(address)
         return {"message": f"Address ID {address_id} has been soft deleted."}
- 
-    
-    
+
+
+# ========================== COUNTRY =========================
+
+
 class CountryService:
     @staticmethod
     def create_country(country_data: CreateCountry, db: Session):
         name = country_data.name.strip()
 
         if not name:
-            raise HTTPException(status_code=400, detail="Country name cannot be null or empty")
+            raise HTTPException(
+                status_code=400, detail="Country name cannot be null or empty"
+            )
 
-        existing = db.query(Country).filter(
-            func.lower(func.trim(Country.name)) == name.lower(),
-            Country.is_deleted == False
-        ).first()
+        existing = (
+            db.query(Country)
+            .filter(
+                func.lower(func.trim(Country.name)) == name.lower(),
+                Country.is_deleted == False,
+            )
+            .first()
+        )
 
         if existing:
             raise HTTPException(status_code=400, detail="Country already exists")
@@ -300,33 +318,27 @@ class CountryService:
         total = query.count()
         countries = query.offset((page - 1) * limit).limit(limit).all()
 
-        return {
-            "page": page,
-            "limit": limit,
-            "total": total,
-            "results": countries
-        }
+        return {"page": page, "limit": limit, "total": total, "results": countries}
 
     @staticmethod
     def get_country_by_id(country_id: int, db: Session):
-        country = db.query(Country).filter(
-            Country.id == country_id,
-            Country.is_deleted == False
-        ).first()
+        country = (
+            db.query(Country)
+            .filter(Country.id == country_id, Country.is_deleted == False)
+            .first()
+        )
 
         if not country:
             raise HTTPException(status_code=404, detail="Country not found")
         return country
 
-
-  
     @staticmethod
-    
     def update_country(country_id: int, country_data: UpdateCountry, db: Session):
-        country = db.query(Country).filter(
-            Country.id == country_id,
-            Country.is_deleted == False
-        ).first()
+        country = (
+            db.query(Country)
+            .filter(Country.id == country_id, Country.is_deleted == False)
+            .first()
+        )
 
         if not country:
             raise HTTPException(status_code=404, detail="Country not found")
@@ -339,14 +351,20 @@ class CountryService:
         if country_data.name is not None:
             name = country_data.name.strip()
             if not name:
-                raise HTTPException(status_code=400, detail="Country name cannot be null or empty")
+                raise HTTPException(
+                    status_code=400, detail="Country name cannot be null or empty"
+                )
 
             # Check for duplicates (exclude current)
-            existing = db.query(Country).filter(
-                Country.id != country_id,
-                func.lower(func.trim(Country.name)) == name.lower(),
-                Country.is_deleted == False
-            ).first()
+            existing = (
+                db.query(Country)
+                .filter(
+                    Country.id != country_id,
+                    func.lower(func.trim(Country.name)) == name.lower(),
+                    Country.is_deleted == False,
+                )
+                .first()
+            )
 
             if existing:
                 raise HTTPException(status_code=400, detail="Country already exists")
@@ -359,24 +377,31 @@ class CountryService:
 
     @staticmethod
     def replace_country(country_id: int, new_data: CreateCountry, db: Session):
-        country = db.query(Country).filter(
-            Country.id == country_id,
-            Country.is_deleted == False
-        ).first()
+        country = (
+            db.query(Country)
+            .filter(Country.id == country_id, Country.is_deleted == False)
+            .first()
+        )
 
         if not country:
             raise HTTPException(status_code=404, detail="Country not found")
 
         name = new_data.name.strip()
         if not name:
-            raise HTTPException(status_code=400, detail="Country name cannot be null or empty")
+            raise HTTPException(
+                status_code=400, detail="Country name cannot be null or empty"
+            )
 
         # Check for duplicates (exclude current)
-        existing = db.query(Country).filter(
-            Country.id != country_id,
-            func.lower(func.trim(Country.name)) == name.lower(),
-            Country.is_deleted == False
-        ).first()
+        existing = (
+            db.query(Country)
+            .filter(
+                Country.id != country_id,
+                func.lower(func.trim(Country.name)) == name.lower(),
+                Country.is_deleted == False,
+            )
+            .first()
+        )
 
         if existing:
             raise HTTPException(status_code=400, detail="Country already exists")

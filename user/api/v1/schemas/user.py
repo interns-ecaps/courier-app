@@ -119,22 +119,37 @@ class FetchAddress(CreateAddress):
 
 
 # ===================== COUNTRIES =====================#
+
+
 class CreateCountry(BaseModel):
     name: str
 
-    model_config = {"from_attributes": True}
+    class Config:
+        from_attributes = True
 
 
 class FetchCountry(CreateCountry):
     id: int
+    name: str
+    is_deleted: bool
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
 
-    model_config = {"from_attributes": True}
+    class Config:
+        from_attributes = True
 
 
 class UpdateCountry(BaseModel):
     name: Optional[str] = None
     is_deleted: Optional[bool] = None
 
-    model_config = {"from_attributes": True}
+    class Config:
+        from_attributes = True
+
+
+class ReplaceCountry(BaseModel):
+    name: str
+    is_deleted: bool
+
+    class Config:
+        from_attributes = True
