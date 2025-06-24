@@ -136,7 +136,7 @@ class CurrencyService:
         return currency
 
 
-# ==================== PACKAGE SERVICE =======================
+# ==================== SHIPMENT SERVICE =======================
 
 
 class ShipmentService:
