@@ -56,6 +56,7 @@ class Package(Base):
     # shipment_id = Column(Integer, ForeignKey("shipments.id"), nullable=False)
     # tracking_number = Column(ForeignKey("shipments.tracking_number"), nullable=False)
     package_type = Column(SQLEnum(PackageType), default=PackageType.STACKABLE_GOODS)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     weight = Column(Numeric(10, 2), nullable=False)
     length = Column(Numeric(10, 2), nullable=False)
     width = Column(Numeric(10, 2), nullable=False)
@@ -76,7 +77,7 @@ class Package(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     shipment = relationship("Shipment", back_populates="packages")
-    
+    user = relationship("User", back_populates="packages", foreign_keys=[user_id])
     payment = relationship("Payment", back_populates="package")
     currency = relationship("Currency", back_populates="packages")
     status = relationship("StatusTracker", back_populates="package")

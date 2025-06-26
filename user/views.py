@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta
+from typing import Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, Request, status
 
 from passlib.context import CryptContext
 
@@ -12,12 +14,36 @@ from common.config import settings
 
 from user.api.v1.utils.auth import create_access_token, create_refresh_token
 from user.api.v1.models.users import User
-from user.api.v1.schemas.user import CreateCountry, CreateUser, SignUpRequest, UpdateUser
+from user.api.v1.schemas.user import (
+    CreateCountry,
+    CreateUser,
+    FetchAddress,
+    FetchCountry,
+    FetchUser,
+    SignUpRequest,
+    UpdateAddress,
+    UpdateCountry,
+    UpdateUser,
+)
 from user.api.v1.models.address import Address
 from user.api.v1.models.address import Country
 from user.api.v1.schemas.user import CreateAddress
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
+
+
+from user.api.v1.models.address import Address, Country
+from user.api.v1.schemas.user import CreateAddress
+from sqlalchemy.orm import Session
+
+
+# user/views/address_service.py or similar
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+from user.api.v1.models.address import Address
+from user.api.v1.models.address import Country
+from user.api.v1.schemas.user import CreateAddress  # 👈 import your schema
+
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -122,31 +148,34 @@ class UserService:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     @staticmethod
-    def get_users(
+    async def get_users(
+        request: Request,
         db: Session,
-        user_id: int = None,
-        email: str = None,
-        user_type: str = None,
-        is_active: bool = None,
-        first_name: str = None,
+        email: Optional[str] = None,
+        user_type: Optional[str] = None,
+        is_active: Optional[bool] = None,
+        first_name: Optional[str] = None,
+        page: int = 1,
+        limit: int = 10,
     ):
-        query = db.query(User)
+        user_id = request.state.user.get("sub", None)
+
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if user_obj.user_type == "super_admin":
+            query = db.query(User).filter(User.is_deleted == False)
+        else:
+            query = db.query(User).filter(User.id == user_id, User.is_deleted == False)
 
         if user_id:
-            user = query.filter(User.id == user_id).first()
-            if not user:
-                raise HTTPException(
-                    status_code=404, detail="User with this ID not found"
-                )
-            return user
+            query = query.filter(User.id == user_id)
 
         if email:
-            user = query.filter(User.email == email).first()
-            if not user:
-                raise HTTPException(
-                    status_code=404, detail="User with this email not found"
-                )
-            return user
+            query = query.filter(User.email == email)
 
         if user_type:
             query = query.filter(User.user_type == user_type)
@@ -157,29 +186,73 @@ class UserService:
         if first_name:
             query = query.filter(User.first_name.ilike(f"%{first_name}%"))
 
-        users = query.all()
-        if not users:
-            raise HTTPException(
-                status_code=404, detail="No users found matching the criteria"
-            )
+        total = query.count()
+        users = query.offset((page - 1) * limit).limit(limit).all()
 
-        return users
+        return {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "results": [FetchUser.model_validate(u) for u in users],
+        }
 
-    def update_user(user_id: int, user_data: UpdateUser, db: Session):
-        user = db.query(User).filter(User.id == user_id).first()
-        print(user, "::user")
+    # async def get_user_by_id(request, user_id: int, db: Session):
+    #     user_id = request.state.user.get("sub", None)
+    #     user_obj = (
+    #         db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+    #     )
+    #     if not user_obj:
+    #         raise HTTPException(status_code=404, detail="User not found")
 
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found.")
+    #     user = (
+    #         db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+    #     )
+
+    #     if not user:
+    #         raise HTTPException(status_code=404, detail="User not found")
+
+    #     return FetchUser.model_validate(user)
+
+    @staticmethod
+    async def update_user(request, user_id: int, user_data: UpdateUser, db: Session):
+        # user = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+
+        # if not user:
+        #     raise HTTPException(status_code=404, detail="User not found.")
+
+        user_id = request.state.user.get("sub", None)
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Optional: Add unique constraint check for email
+        if user_data.email and user_data.email != user_obj.email:
+            existing_user = db.query(User).filter(User.email == user_data.email).first()
+            if existing_user:
+                raise HTTPException(status_code=400, detail="Email already in use.")
+            
+
+        # Only super_admin can soft delete
+        if user_data.is_deleted == False:
+            if user_obj.user_type != "super_admin":
+                raise HTTPException(status_code=403, detail="Only super admins can delete users")
 
         for field, value in user_data.dict(exclude_unset=True).items():
-            setattr(user, field, value)
+            setattr(user_obj, field, value)
 
         db.commit()
-        db.refresh(user)
-        return user
+        db.refresh(user_obj)
+        return FetchUser.model_validate(user_obj)
 
-    def replace_user(user_id: int, user_data: CreateUser, db: Session):
+    async def replace_user(request, user_id: int, user_data: CreateUser, db: Session):
+        user_id = request.state.user.get("sub", None)
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found.")
@@ -190,80 +263,380 @@ class UserService:
         db.commit()
         db.refresh(user)
         return user
-    
-    def disable_user(user_id: int, db: Session):
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found.")
-
-        user.is_active = False
-        db.commit()
-        db.refresh(user)
-        return user
-from user.api.v1.models.address import Address, Country
-from user.api.v1.schemas.user import CreateAddress
-from sqlalchemy.orm import Session
-
-
-
-
-# user/views/address_service.py or similar
-from fastapi import HTTPException
-from sqlalchemy.orm import Session
-from user.api.v1.models.address import Address
-from user.api.v1.models.address import Country
-from user.api.v1.schemas.user import CreateAddress  # 👈 import your schema
 
 
 class AddressService:
     @staticmethod
-    def create_address(address_data: CreateAddress, db: Session):
-    
-        country = db.query(Country).filter(Country.id == address_data.country_code).first()
+    async def create_address(request, address_data: CreateAddress, db: Session):
+        user_id = request.state.user.get("sub", None)
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        country = (
+            db.query(Country).filter(Country.id == address_data.country_code).first()
+        )
         if not country:
             raise HTTPException(status_code=404, detail="Country not found")
 
+        # Latitude and longitude validation
+        if address_data.latitude is not None and not (
+            -90 <= address_data.latitude <= 90
+        ):
+            raise HTTPException(
+                status_code=400, detail="Latitude must be between -90 and 90."
+            )
+
+        if address_data.longitude is not None and not (
+            -180 <= address_data.longitude <= 180
+        ):
+            raise HTTPException(
+                status_code=400, detail="Longitude must be between -180 and 180."
+            )
+
         address = Address(
-        user_id=address_data.user_id,
-        label=address_data.label,
-        street_address=address_data.street_address,
-        city=address_data.city,
-        state=address_data.state,
-        postal_code=address_data.postal_code,
-        landmark=address_data.landmark,
-        latitude=address_data.latitude,
-        longitude=address_data.longitude,
-        is_default=address_data.is_default,
-        country=country  # 👈 assign full object here
-    )
+            user_id=user_obj.id,
+            label=address_data.label,
+            street_address=address_data.street_address,
+            city=address_data.city,
+            state=address_data.state,
+            postal_code=address_data.postal_code,
+            landmark=address_data.landmark,
+            latitude=address_data.latitude,
+            longitude=address_data.longitude,
+            is_default=address_data.is_default,
+            country=country,
+        )
 
         db.add(address)
         db.commit()
         db.refresh(address)
         return address
 
+    @staticmethod
+    async def get_addresses(
+        request,
+        db: Session,
+        address_id: Optional[int] = None,
+        user_id: Optional[int] = None,
+        city: Optional[str] = None,
+        state: Optional[str] = None,
+        country_code: Optional[int] = None,
+        is_default: Optional[bool] = None,
+        page: int = 1,
+        limit: int = 10,
+    ):
+        user_id = request.state.user.get("sub", None)
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
+        if address_id:
+            address = (
+                db.query(Address)
+                .filter(Address.user_id == user_obj.id, Address.id == address_id)
+                .first()
+            )
+            if not address:
+                raise HTTPException(status_code=404, detail="Address not found")
+            return FetchAddress.model_validate(address).model_dump()
+        query = (
+            db.query(Address)
+            .options(joinedload(Address.user), joinedload(Address.country))
+            .filter(Address.is_deleted == False)
+        )
+
+        if user_id is not None:
+            query = query.filter(Address.user_id == user_id)
+
+        if city:
+            query = query.filter(Address.city.ilike(f"%{city}%"))
+
+        if state:
+            query = query.filter(Address.state.ilike(f"%{state}%"))
+
+        if country_code is not None:
+            query = query.filter(Address.country_code == country_code)
+
+        if is_default is not None:
+            query = query.filter(Address.is_default == is_default)
+
+        total = query.count()
+        addresses = query.offset((page - 1) * limit).limit(limit).all()
+
+        return {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "results": [FetchAddress.model_validate(a) for a in addresses],
+        }
+
+    @staticmethod
+    async def get_address_by_id(request, address_id: int, db: Session):
+        user_id = request.state.user.get("sub", None)
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        address = db.query(Address).filter(Address.id == address_id).first()
+
+        if not address:
+            raise HTTPException(status_code=404, detail="Address not found")
+
+        if address.is_deleted:
+            raise HTTPException(
+                status_code=403, detail="Address has been deleted and cannot be fetched"
+            )
+
+        return address
+
+    @staticmethod
+    async def update_address(
+        request, address_id: int, update_data: UpdateAddress, db: Session
+    ):
+
+        user_id = request.state.user.get("sub", None)
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        address = (
+            db.query(Address)
+            .filter(Address.user_id == user_obj.id, Address.id == address_id)
+            .first()
+        )
+
+        if not address:
+            raise HTTPException(status_code=404, detail="Address not found")
+
+        # Handle is_deleted update separately
+        if address.is_deleted and (update_data.is_deleted is not True):
+            # Cannot update other fields of a soft-deleted address
+            raise HTTPException(
+                status_code=403,
+                detail="Address has been deleted and cannot be updated",
+            )
+
+        for field, value in update_data.dict(exclude_unset=True).items():
+            setattr(address, field, value)
+
+        db.commit()
+        db.refresh(address)
+        return {"message": "Address updated successfully", "address": address}
+
+    @staticmethod
+    async def replace_address(
+        request, address_id: int, address_data: CreateAddress, db: Session
+    ):
+        user_id = request.state.user.get("sub", None)
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        address = (
+            db.query(Address)
+            .filter(Address.user_id == user_obj.id, Address.id == address_id)
+            .first()
+        )
+
+        if not address:
+            raise HTTPException(status_code=404, detail="Address not found")
+
+        for field, value in address_data.dict().items():
+            setattr(address, field, value)
+
+        db.commit()
+        db.refresh(address)
+        return address
 
 
-    
+# ========================== COUNTRY =========================
+
+
 class CountryService:
     @staticmethod
-    def create_country(country_data: CreateCountry, db: Session):
-        existing = db.query(Country).filter(Country.name == country_data.name).first()
+    async def create_country(request, country_data: CreateCountry, db: Session):
+        user_id = request.state.user.get("sub", None)
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
+        if user_obj.user_type != "super_admin":
+            raise HTTPException(
+                status_code=403, detail="Only admin users can create countries"
+            )
+
+        name = country_data.name.strip()
+
+        if not name:
+            raise HTTPException(
+                status_code=400, detail="Country name cannot be null or empty"
+            )
+
+        existing = (
+            db.query(Country)
+            .filter(
+                func.lower(func.trim(Country.name)) == name.lower(),
+                Country.is_deleted == False,
+            )
+            .first()
+        )
+
         if existing:
             raise HTTPException(status_code=400, detail="Country already exists")
-        country = Country(**country_data.dict())
+
+        country = Country(name=name)
         db.add(country)
         db.commit()
         db.refresh(country)
         return country
 
     @staticmethod
-    def get_all_countries(db: Session):
-        return db.query(Country).all()
+    async def get_all_countries(request, db: Session, page: int = 1, limit: int = 10):
+        user_id = request.state.user.get("sub", None)
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        query = db.query(Country).filter(Country.is_deleted == False)
+        total = query.count()
+        countries = query.offset((page - 1) * limit).limit(limit).all()
+
+        return {"page": page, "limit": limit, "total": total, "results": countries}
+
+    # Adjust import if needed
+
+    # @staticmethod
+    # async def get_country_by_id(country_id: int, db: Session) -> FetchCountry:
+    #     country = (
+    #         db.query(Country)
+    #         .filter(Country.id == country_id, Country.is_deleted == False)
+    #         .first()
+    #     )
+
+    #     if not country:
+    #         raise HTTPException(status_code=404, detail="Country not found")
+
+    #     return FetchCountry.model_validate(country)
 
     @staticmethod
-    def get_country_by_id(country_id: int, db: Session):
-        country = db.query(Country).filter(Country.id == country_id).first()
+    async def update_country(
+        request, country_id: int, country_data: UpdateCountry, db: Session
+    ):
+
+        user_id = request.state.user.get("sub", None)
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if  user_obj.user_type != "super_admin":
+            raise HTTPException(
+                status_code=403, detail="Only admin users can edit countries"
+            )
+
+        country = (
+            db.query(Country)
+            .filter(Country.id == country_id, Country.is_deleted == False)
+            .first()
+        )
+
         if not country:
             raise HTTPException(status_code=404, detail="Country not found")
+
+        # Handle soft delete
+        if country_data.is_deleted is not None:
+            country.is_deleted = country_data.is_deleted
+
+        # Handle name update
+        if country_data.name is not None:
+            name = country_data.name.strip()
+            if not name:
+                raise HTTPException(
+                    status_code=400, detail="Country name cannot be null or empty"
+                )
+
+            # Check for duplicates (exclude current)
+            existing = (
+                db.query(Country)
+                .filter(
+                    Country.id != country_id,
+                    func.lower(func.trim(Country.name)) == name.lower(),
+                    Country.is_deleted == False,
+                )
+                .first()
+            )
+
+            if existing:
+                raise HTTPException(status_code=400, detail="Country already exists")
+
+            country.name = name
+
+        db.commit()
+        db.refresh(country)
+        return country
+
+    @staticmethod
+    async def replace_country(
+        request, country_id: int, new_data: CreateCountry, db: Session
+    ):
+
+        user_id = request.state.user.get("sub", None)
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if user_obj.user_type != "super_admin":
+            raise HTTPException(
+                status_code=403, detail="Only admin users can edit countries"
+            )
+
+        country = (
+            db.query(Country)
+            .filter(Country.id == country_id, Country.is_deleted == False)
+            .first()
+        )
+
+        if not country:
+            raise HTTPException(status_code=404, detail="Country not found")
+
+        name = new_data.name.strip()
+        if not name:
+            raise HTTPException(
+                status_code=400, detail="Country name cannot be null or empty"
+            )
+
+        # Check for duplicates (exclude current)
+        existing = (
+            db.query(Country)
+            .filter(
+                Country.id != country_id,
+                func.lower(func.trim(Country.name)) == name.lower(),
+                Country.is_deleted == False,
+            )
+            .first()
+        )
+
+        if existing:
+            raise HTTPException(status_code=400, detail="Country already exists")
+
+        country.name = name
+
+        db.commit()
+        db.refresh(country)
         return country
