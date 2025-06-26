@@ -62,17 +62,13 @@ class CurrencyService:
         db.refresh(currency_obj)
         return currency_obj
        
-    
+    @staticmethod
     async def update_currency(currency_id: int, new_data: CreateCurrency, db: Session):
         currency = db.query(Currency).filter(Currency.id == currency_id).first()
 
 
     @staticmethod
-    def get_currency(db: Session):
-        return db.query(Currency).filter(Currency.is_deleted == False).all()
-
-    @staticmethod
-    def get_currency_by_id(currency_id: int, db: Session):
+    async def get_currency_by_id(currency_id: int, db: Session):
         currency = (
             db.query(Currency)
             .filter(Currency.id == currency_id, Currency.is_deleted == False)
@@ -82,7 +78,7 @@ class CurrencyService:
             raise HTTPException(status_code=404, detail="Currency not found")
         return currency
 
-    def update_currency(currency_id: int, new_data: UpdateCurrency, db: Session):
+    async def update_currency(currency_id: int, new_data: UpdateCurrency, db: Session):
         currency = (
             db.query(Currency)
             .filter(Currency.id == currency_id, Currency.is_deleted == False)
@@ -109,7 +105,7 @@ class CurrencyService:
             raise HTTPException(status_code=404, detail="Currency not found")
         return currency
 
-    def replace_currency(currency_id: int, new_data: CreateCurrency, db: Session):
+    async def replace_currency(currency_id: int, new_data: CreateCurrency, db: Session):
         currency = (
             db.query(Currency)
             .filter(Currency.id == currency_id, Currency.is_deleted == False)
@@ -131,7 +127,7 @@ class CurrencyService:
 
 
 class ShipmentService:
-    def create_shipment(shipment_data: CreateShipment, db: Session):
+    async def create_shipment(shipment_data: CreateShipment, db: Session):
         # Validate sender
         sender = (
             db.query(User)
@@ -218,7 +214,7 @@ class ShipmentService:
         db.refresh(new_shipment)
         return new_shipment
 
-    def get_shipments(
+    async def get_shipments(
         db: Session,
         user_id: Optional[int] = None,
         package_type: Optional[str] = None,
@@ -267,7 +263,7 @@ class ShipmentService:
         }
 
     @staticmethod
-    def get_shipment_by_id(shipment_id: int, db: Session):
+    async def get_shipment_by_id(shipment_id: int, db: Session):
         shipment = (
             db.query(Shipment)
             .options(joinedload(Shipment.packages))
@@ -291,7 +287,7 @@ class ShipmentService:
     #     return {"message": "Shipment deleted successfully"}
 
     @staticmethod
-    def update_shipment(shipment_id: int, shipment_data: UpdateShipment, db: Session):
+    async def update_shipment(shipment_id: int, shipment_data: UpdateShipment, db: Session):
         shipment = (
             db.query(Shipment)
             .filter(Shipment.id == shipment_id, Shipment.is_deleted == False)
@@ -307,7 +303,7 @@ class ShipmentService:
         db.refresh(shipment)
         return FetchShipment.model_validate(shipment)
 
-    def replace_shipment(shipment_id: int, shipment_data: CreateShipment, db: Session):
+    async def replace_shipment(shipment_id: int, shipment_data: CreateShipment, db: Session):
         shipment = (
             db.query(Shipment)
             .filter(Shipment.id == shipment_id, Shipment.is_deleted == False)
@@ -328,7 +324,7 @@ class ShipmentService:
 
 
 class PackageService:
-    def create_package(package_data: CreatePackage, db: Session):
+    async def create_package(package_data: CreatePackage, db: Session):
         # currency_id = package_data.currency_id
         currency = (
             db.query(Currency).filter(Currency.id == package_data.currency_id).first()
@@ -356,7 +352,7 @@ class PackageService:
         return package_obj
 
     @staticmethod
-    def get_packages(
+    async def get_packages(
         db: Session,
         package_type: Optional[str] = None,
         currency_id: Optional[int] = None,
@@ -383,7 +379,7 @@ class PackageService:
 
         return {"page": page, "limit": limit, "total": total, "results": results}
 
-    def get_package_by_id(package_id: int, db: Session):
+    async def get_package_by_id(package_id: int, db: Session):
         package = db.query(Package).filter(Package.id == package_id).first()
         if not package:
             raise HTTPException(status_code=404, detail="Package not found")

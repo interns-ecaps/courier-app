@@ -35,12 +35,6 @@ def create_currency(request: CreateCurrency, db: Session = Depends(get_db)):
     return views.CurrencyService.create_currency(request, db)
 
 
-@shipment_router.get("/currencies/", response_model=List[FetchCurrency])
-def get_currency(db: Session = Depends(get_db)):
-    # """Fetch all currencies."""
-    return views.CurrencyService.get_currency(db)
-
-
 @shipment_router.get("/currencies/{currency_id}", response_model=FetchCurrency)
 def get_currency_by_id(
     currency_id: int = Path(..., description="The ID of the currency to retrieve"),
@@ -51,7 +45,7 @@ def get_currency_by_id(
 
 
 @shipment_router.patch("/update_currency/{currency_id}", response_model=FetchCurrency)
-def update_currency(
+async def update_currency(
     currency_id: int = Path(..., description="The ID of the currency to update"),
     request: UpdateCurrency = Body(...),
     db: Session = Depends(get_db),
@@ -59,7 +53,7 @@ def update_currency(
     return views.CurrencyService.update_currency(currency_id, request, db)
 
 @shipment_router.put("/replace_currency/{currency_id}", response_model=FetchCurrency)
-def replace_currency(
+async def replace_currency(
     currency_id: int = Path(..., description="The ID of the currency to update"),
     request: CreateCurrency = Body(...),
     db: Session = Depends(get_db),
@@ -72,13 +66,13 @@ def replace_currency(
 
 @shipment_router.post("/create_shipment/")
 @token_required
-async def create_shipment(request: Request,payload: CreateShipment, db: Session = Depends(get_db)):
+async async def create_shipment(request: Request,payload: CreateShipment, db: Session = Depends(get_db)):
     return await views.ShipmentService.create_shipment(payload, db)
 
 
 @shipment_router.patch("/update_currency/{currency_id}")
 @token_required
-async def update_currency(
+async async def update_currency(
     request: Request,currency_id: int, payload: CreateCurrency, db: Session = Depends(get_db)
 ):
     return await views.CurrencyService.update_currency(currency_id, payload, db)
@@ -240,12 +234,12 @@ async def get_currency_by_id(
 ):
     """Fetch a single currency by ID."""
     return await views.CurrencyService.get_currency_by_id(currency_id, db)
-def create_status_tracker(request: CreateStatusTracker, db: Session = Depends(get_db)):
+async def create_status_tracker(request: CreateStatusTracker, db: Session = Depends(get_db)):
     return views.StatusTrackerService.create_status_tracker(request, db)
 
 
 @shipment_router.get("/status/")
-def get_status(
+async def get_status(
     shipment_id: Optional[int] = Query(default=None),
     package_id: Optional[int] = Query(default=None),
     status: Optional[ShipmentStatus] = Query(default=None),
