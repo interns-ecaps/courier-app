@@ -66,5 +66,9 @@ class User(Base):
         "Shipment", back_populates="courier", foreign_keys="[Shipment.courier_id]"
     )
 
+    packages = relationship(
+        "Package", back_populates="user", foreign_keys="[Package.user_id]"
+    )
+
     def __str__(self):
         return f"<User>-- {self.email}:{self.user_type}"
