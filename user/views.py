@@ -275,6 +275,20 @@ class AddressService:
         db.commit()
         db.refresh(address)
         return {"message": "Address updated successfully", "address": address}
+
+    @staticmethod
+    def replace_address(address_id: int, address_data: CreateAddress, db: Session):
+        address = db.query(Address).filter(Address.id == address_id).first()
+
+        if not address:
+            raise HTTPException(status_code=404, detail="Address not found")
+
+        for field, value in address_data.dict().items():
+            setattr(address, field, value)
+
+        db.commit()
+        db.refresh(address)
+        return address
     
 
     
