@@ -11,6 +11,7 @@ from passlib.context import CryptContext
 
 from common.database import SessionLocal
 from common.config import settings
+from user.api.v1.models import address
 from user.api.v1.models.address import Address, Country
 from user.api.v1.schemas.user import CreateAddress
 from sqlalchemy.orm import Session
