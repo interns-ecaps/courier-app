@@ -1,9 +1,5 @@
 from datetime import datetime
-<<<<<<< HEAD
-from fastapi import HTTPException
-=======
 from fastapi import HTTPException, status
->>>>>>> b114b3076209a652c00593521f403e8e4ba0a683
 from shipment.api.v1.models.package import Currency, Package, PackageType
 from shipment.api.v1.models.status import ShipmentStatus, StatusTracker
 from shipment.api.v1.models.shipment import Shipment
@@ -17,11 +13,6 @@ from shipment.api.v1.schemas.shipment import (
     CreateShipment,
     CreateStatusTracker,
     FetchPackage,
-<<<<<<< HEAD
-    FetchShipment,
-    FetchStatus,
-    ReplacePackage,
-=======
     FetchPayment,
     FetchShipment,
     FetchStatus,
@@ -29,7 +20,6 @@ from shipment.api.v1.schemas.shipment import (
     ReplacePayment,
     ReplaceShipment,
     ReplaceStatus,
->>>>>>> b114b3076209a652c00593521f403e8e4ba0a683
     UpdateCurrency,
     UpdatePackage,
     UpdateShipment,
@@ -46,32 +36,10 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from shipment.api.v1.models.payment import Payment, PaymentMethod, PaymentStatus
 from shipment.api.v1.schemas.shipment import CreatePayment, UpdatePayment
-<<<<<<< HEAD
-from shipment.api.v1.models.package import Currency, Package, PackageType
-from shipment.api.v1.schemas.shipment import (
-    CreateCurrency,
-    CreatePackage,
-    UpdatePackage,
-)
-from sqlalchemy.orm import Session
-from typing import List, Optional
-=======
-
->>>>>>> b114b3076209a652c00593521f403e8e4ba0a683
 
 # ======================== CURRENCY SERVICE =========================
 
 
-<<<<<<< HEAD
-#============SHIPMENT==============#
-
-
-
-#===============PACKAGE===================
-class PackageService:
-    def create_package(package_data: CreatePackage, db: Session):
-        # currency_id = package_data.currency_id
-=======
 class CurrencyService:
     @staticmethod
     async def create_currency(request, currency_data: CreateCurrency, db: Session):
@@ -605,7 +573,6 @@ class PackageService:
         if not user_obj:
             raise HTTPException(status_code=404, detail="User not found")
 
->>>>>>> b114b3076209a652c00593521f403e8e4ba0a683
         currency = (
             db.query(Currency).filter(Currency.id == package_data.currency_id).first()
         )
@@ -618,10 +585,7 @@ class PackageService:
             raise Exception(f"Invalid package_type: {package_data.package_type}")
 
         package_obj = Package(
-<<<<<<< HEAD
-=======
             user_id=user_obj.id,
->>>>>>> b114b3076209a652c00593521f403e8e4ba0a683
             package_type=package_type_enum,
             weight=package_data.weight,
             length=package_data.length,
@@ -636,12 +600,8 @@ class PackageService:
         return package_obj
 
     @staticmethod
-<<<<<<< HEAD
-    def get_packages(
-=======
     async def get_packages(
         request,
->>>>>>> b114b3076209a652c00593521f403e8e4ba0a683
         db: Session,
         package_type: Optional[str] = None,
         currency_id: Optional[int] = None,
@@ -649,9 +609,6 @@ class PackageService:
         page: int = 1,
         limit: int = 10,
     ):
-<<<<<<< HEAD
-        query = db.query(Package).filter(Package.is_deleted == False)
-=======
         user_id = request.state.user.get("sub", None)
         user_obj = (
             db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
@@ -665,7 +622,6 @@ class PackageService:
             query = db.query(Package).filter(
                 Package.user_id == user_id, Package.is_deleted == False
             )
->>>>>>> b114b3076209a652c00593521f403e8e4ba0a683
 
         if package_type:
             try:
@@ -678,23 +634,15 @@ class PackageService:
 
         if is_negotiable is not None:
             query = query.filter(Package.is_negotiable == is_negotiable)
-<<<<<<< HEAD
-=======
 
         if user_id:
             query = query.filter(Package.user_id == user_id)
->>>>>>> b114b3076209a652c00593521f403e8e4ba0a683
 
         total = query.count()
         results = query.offset((page - 1) * limit).limit(limit).all()
 
         return {"page": page, "limit": limit, "total": total, "results": results}
 
-<<<<<<< HEAD
-    def get_package_by_id(package_id: int, db: Session):
-        package = db.query(Package).filter(Package.id == package_id).first()
-
-=======
     # async def get_package_by_id(package_id: int, db: Session):
     #     package = db.query(Package).filter(Package.id == package_id).first()
 
@@ -752,30 +700,12 @@ class PackageService:
 
         package = db.query(Package).filter(Package.id == package_id).first()
 
->>>>>>> b114b3076209a652c00593521f403e8e4ba0a683
         if not package:
             raise HTTPException(status_code=404, detail="Package not found")
 
         if package.is_deleted:
             raise HTTPException(status_code=403, detail="Package has been deleted")
 
-<<<<<<< HEAD
-        return package
-
-
-    def update_package(package_id: int, data: UpdatePackage,db: Session):
-        package = db.query(Package).filter(Package.id == package_id, Package.is_deleted == False).first()
-        print(package, "::::package")
-        if not package:
-            raise HTTPException(status_code=404, detail="Package not found")
-        print(data, "::DAta")
-        update_data = data.dict(exclude_unset=True, exclude_none=True) 
-
-        for field, value in update_data.items():  
-            setattr(package, field, value)
-        print(package.weight, "::::package.weight")
-        package.updated_at = datetime.utcnow()
-=======
         # Ownership check (adjust field name as per your model)
         if (
             getattr(package, "user_id", None) != user.id
@@ -846,39 +776,10 @@ class StatusTrackerService:
         )
 
         db.add(tracker)
->>>>>>> b114b3076209a652c00593521f403e8e4ba0a683
         db.commit()
         db.refresh(package)
         return package
 
-<<<<<<< HEAD
-
-    @staticmethod
-    def replace_package(package_id: int, package_data: ReplacePackage, db: Session):
-        package = db.query(Package).filter(Package.id == package_id).first()
-
-        if not package:
-            raise HTTPException(status_code=404, detail="Package not found")
-
-        if package.is_deleted:
-            raise HTTPException(status_code=403, detail="Package has been deleted")
-
-        for field, value in package_data.dict().items():
-            setattr(package, field, value)
-
-        db.commit()
-        db.refresh(package)
-        return FetchPackage.model_validate(package)
-
-    
-
-# ========================= STATUS TRACKER SERVICE =========================
-
-
-# ========================= PAYMENT SERVICE =========================
-
-
-=======
     @staticmethod
     async def get_status(
         request,
@@ -1286,4 +1187,3 @@ class PaymentService:
         db.commit()
         db.refresh(payment)
         return payment
->>>>>>> b114b3076209a652c00593521f403e8e4ba0a683
