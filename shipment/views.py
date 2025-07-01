@@ -777,8 +777,8 @@ class StatusTrackerService:
 
         db.add(tracker)
         db.commit()
-        db.refresh(package)
-        return package
+        db.refresh(tracker)
+        return tracker
 
     @staticmethod
     async def get_status(
