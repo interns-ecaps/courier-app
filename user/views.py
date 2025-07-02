@@ -11,6 +11,8 @@ from passlib.context import CryptContext
 
 from common.database import SessionLocal
 from common.config import settings
+from shipment.api.v1.models.payment import Payment, PaymentStatus
+from shipment.api.v1.models.shipment import Shipment
 from user.api.v1.models import address
 from user.api.v1.models.address import Address, Country
 from user.api.v1.schemas.user import CreateAddress
@@ -666,3 +668,48 @@ class CountryService:
         db.commit()
         db.refresh(country)
         return country
+class DashboardService:
+    @staticmethod
+    async def get_dashboard_data(db: Session):
+        today = datetime.utcnow().date()
+        month_start = today.replace(day=1)
+
+        # shipments
+        total_shipments = db.query(Shipment).filter(Shipment.is_deleted == False).count()
+        shipments_today = db.query(Shipment).filter(
+            Shipment.is_deleted == False,
+            Shipment.created_at >= today
+        ).count()
+        shipments_this_month = db.query(Shipment).filter(
+            Shipment.is_deleted == False,
+            Shipment.created_at >= month_start
+        ).count()
+
+        # payments
+        total_payments = db.query(Payment).filter(Payment.is_deleted == False).count()
+        pending_payments = db.query(Payment).filter(
+            Payment.is_deleted == False,
+            Payment.payment_status == PaymentStatus.PENDING
+        ).count()
+        completed_payments = db.query(Payment).filter(
+            Payment.is_deleted == False,
+            Payment.payment_status == PaymentStatus.COMPLETED
+        ).count()
+
+        # users
+        active_couriers = db.query(User).filter(
+            User.is_deleted == False,
+            User.is_active == True
+        ).count()
+        total_users = db.query(User).filter(User.is_deleted == False).count()
+
+        return {
+            "total_shipments": total_shipments,
+            "shipments_today": shipments_today,
+            "shipments_this_month": shipments_this_month,
+            "total_payments": total_payments,
+            "pending_payments": pending_payments,
+            "completed_payments": completed_payments,
+            "active_couriers": active_couriers,
+            "total_users": total_users
+        }

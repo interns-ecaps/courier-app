@@ -10,6 +10,7 @@ from user import views
 from user.api.v1.models.address import Address
 from user.views import (
     CountryService,
+    DashboardService,
     UserService,
     signup_user,
     AddressService
@@ -208,3 +209,8 @@ async def update_country(
     request: Request,country_id: int, country_data: UpdateCountry, db: Session = Depends(get_db)
 ):
     return await CountryService.update_country(request, country_id, country_data, db)
+
+@user_router.get("/dashboard", tags=["Dashboard"])
+@token_required
+async def get_dashboard(request:Request, db: Session = Depends(get_db)):
+    return await DashboardService.get_dashboard_data(db)
