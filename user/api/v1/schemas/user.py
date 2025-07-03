@@ -399,6 +399,8 @@ class CreateAddress(BaseModel):
 class FetchAddress(CreateAddress):
     id: int
 
+    model_config = {"from_attributes": True}
+
 
 from typing import Optional, Annotated
 from pydantic import BaseModel, Field

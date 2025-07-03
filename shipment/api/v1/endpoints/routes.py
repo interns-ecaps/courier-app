@@ -126,14 +126,14 @@ async def get_shipments(
     )
 
 
-# @shipment_router.get("/shipments/{shipment_id}")
-# @token_required
-# async def get_shipment_by_id(
-#     request:Request,
-#     shipment_id: int,
-#     db: Session = Depends(get_db),
-# ):
-#     return await views.ShipmentService.get_shipment_by_id(shipment_id=shipment_id, db=db)
+@shipment_router.get("/shipments/{shipment_id}")
+@token_required
+async def get_shipment_by_id(
+    request:Request,
+    shipment_id: int,
+    db: Session = Depends(get_db),
+):
+    return await views.ShipmentService.get_shipment_by_id(request, shipment_id=shipment_id, db=db)
 
 
 @shipment_router.patch("/update_shipment/{shipment_id}")
@@ -189,14 +189,14 @@ async def get_packages(
     )
 
 
-# @shipment_router.get("/packages/{package_id}", response_model=FetchPackage)
-# @token_required
-# async def get_package_by_id(
-#     request:Request,
-#     package_id: int = Path(..., description="The ID of the package to retrieve"),
-#     db: Session = Depends(get_db),
-# ):
-#     return await views.PackageService.get_package_by_id(package_id, db)
+@shipment_router.get("/packages/{package_id}", response_model=FetchPackage)
+@token_required
+async def get_package_by_id(
+    request:Request,
+    package_id: int = Path(..., description="The ID of the package to retrieve"),
+    db: Session = Depends(get_db),
+):
+    return await views.PackageService.get_package_by_id(request, package_id, db)
 
 
 @shipment_router.patch("/update_package/{package_id}")
@@ -211,7 +211,7 @@ async def update_package(
     return await PackageService.update_package(request, package_id, payload, db)
 
 
-@shipment_router.put("/packages/{package_id}", response_model=FetchPackage)
+@shipment_router.put("/replace_package/{package_id}", response_model=FetchPackage)
 @token_required
 async def replace_package_route(
     request:Request,
@@ -253,10 +253,10 @@ async def get_statuses(
     )
 
 
-# @shipment_router.get("/get_status/{status_id}", response_model=FetchStatus)
-# @token_required
-# async def get_status_by_id(request:Request,status_id: int = Path(...), db: Session = Depends(get_db)):
-#     return await StatusTrackerService.get_status_by_id(status_id, db)
+@shipment_router.get("/statuses/{status_id}", response_model=FetchStatus)
+@token_required
+async def get_status_by_id(request:Request,status_id: int = Path(...), db: Session = Depends(get_db)):
+    return await StatusTrackerService.get_status_by_id(request, status_id, db)
 
 
 @shipment_router.patch("/update_status/{status_id}", response_model=FetchStatus)
@@ -310,10 +310,10 @@ async def get_payments(
     )
 
 
-# @shipment_router.get("/get_payment/{payment_id}", response_model=FetchPayment)
-# @token_required
-# async def get_payment(request:Request,payment_id: int, db: Session = Depends(get_db)):
-#     return await PaymentService.get_payment_by_id(request,payment_id, db)
+@shipment_router.get("/payments/{payment_id}", response_model=FetchPayment)
+@token_required
+async def get_payment(request:Request,payment_id: int, db: Session = Depends(get_db)):
+    return await PaymentService.get_payment_by_id(request,payment_id, db)
 
 
 @shipment_router.patch("/update_payment/{payment_id}", response_model=FetchPayment)

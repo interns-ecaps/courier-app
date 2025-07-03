@@ -8,6 +8,7 @@ from core.decorators.token_required import token_required
 from shipment.api.v1.endpoints import routes
 from user import views
 from user.api.v1.models.address import Address
+from user.api.v1.models.users import UserType
 from user.views import (
     CountryService,
     UserService,
@@ -37,6 +38,13 @@ class LoginRequest(BaseModel):
     password: str
 
 
+@user_router.get("/user-types")
+def get_user_types():
+    return [
+        {"value": user_type.value,  "label": user_type.name.replace("_", " ").title()}
+        for user_type in UserType if user_type != "super_admin"
+    ]
+
 @user_router.get("/read_profile/")
 def read_profile(current_user: dict = Depends(get_current_user)):
     return {"message": "Access granted", "user": current_user}
@@ -52,7 +60,7 @@ def register_user(request: SignUpRequest, db: Session = Depends(get_db)):
     return signup_user(request, db)
 
 
-@user_router.post("/create_user/")
+@user_router.post("/create/")
 def create_user(request: CreateUser, db: Session = Depends(get_db)):
     return views.UserService.create_user(request, db)
 
@@ -122,6 +130,7 @@ async def get_all_addresses(
     request: Request,
     address_id: Optional[int] = Query(None),
     user_id: Optional[int] = Query(None),
+    recipient_email: Optional[EmailStr] = Query(None, description="Fetch by recipient email"),
     city: Optional[str] = Query(None),
     state: Optional[str] = Query(None),
     country_code: Optional[int] = Query(None),
@@ -130,10 +139,12 @@ async def get_all_addresses(
     limit: int = Query(10, ge=1),
     db: Session = Depends(get_db),
 ):
-    return await AddressService.get_addresses(request=request,
+    return await AddressService.get_addresses(
+        request=request,
         db=db,
         address_id=address_id,
         user_id=user_id,
+        recipient_email=recipient_email,
         city=city,
         state=state,
         country_code=country_code,
@@ -143,10 +154,11 @@ async def get_all_addresses(
     )
 
 
-# @user_router.get("/addresses/", response_model=FetchAddress)
-# @token_required
-# async def get_address_by_id(request: Request,address_id: int = Path(...), db: Session = Depends(get_db)):
-#     return await AddressService.get_address_by_id(address_id, db)
+
+@user_router.get("/addresses/{address_id}", response_model=FetchAddress)
+@token_required
+async def get_address_by_id(request: Request,address_id: int = Path(...), db: Session = Depends(get_db)):
+    return await AddressService.get_address_by_id(request, address_id, db)
 
 
 @user_router.patch("/update_address/{address_id}")
