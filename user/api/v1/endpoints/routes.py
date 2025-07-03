@@ -2,18 +2,20 @@ from typing import List, Optional, Union
 from fastapi import APIRouter, Depends, Form, HTTPException, Body, Path, Query, Request
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
-
+from core.utils import auth as auth_service
 from common.database import get_db
 from core.decorators.token_required import token_required
 from shipment.api.v1.endpoints import routes
 from user import views
 import user
 from user.api.v1.models.address import Address
+from user.api.v1.models.users import User
 from user.views import (
     CountryService,
     UserService,
     signup_user,
-    AddressService
+    AddressService,
+    DashboardService
 )
 from user.api.v1.utils.auth import get_current_user
 from user.api.v1.schemas.user import (
@@ -210,3 +212,12 @@ async def update_country(
     request: Request,country_id: int, country_data: UpdateCountry, db: Session = Depends(get_db)
 ):
     return await CountryService.update_country(request, country_id, country_data, db)
+
+@user_router.get("/dashboard")
+@token_required
+async def get_dashboard_data(
+    request : Request,
+    db: Session = Depends(get_db),
+    # current_user: User = Depends(auth_service.get_current_user)
+):
+    return await DashboardService.get_dashboard_data(request, db)

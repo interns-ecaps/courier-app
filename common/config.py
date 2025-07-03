@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     db_user: str
     db_pass: str
     db_host: str
-    
+
     db_name: str
     db_port: int
     # JWT
@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
 
 class LoginRequest(BaseModel):
     username: str

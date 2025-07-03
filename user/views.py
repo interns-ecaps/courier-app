@@ -12,8 +12,11 @@ from passlib.context import CryptContext
 from common.database import SessionLocal
 from common.config import settings
 
+from shipment.api.v1.models.payment import Payment, PaymentStatus
+from shipment.api.v1.models.shipment import Shipment
+from shipment.api.v1.models.package import Package
 from user.api.v1.utils.auth import create_access_token, create_refresh_token
-from user.api.v1.models.users import User
+from user.api.v1.models.users import User, UserType
 from user.api.v1.schemas.user import (
     CreateCountry,
     CreateUser,
@@ -640,3 +643,80 @@ class CountryService:
         db.commit()
         db.refresh(country)
         return country
+
+
+class DashboardService:
+    @staticmethod
+    async def get_dashboard_data(
+        request,
+        db: Session,
+    ):
+        # Fetch user from request.state.user
+        user_id = request.state.user.get("sub", None)
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
+        print("User type:", user_obj.user_type)   # <-- add this line here
+
+        user_type = user_obj.user_type
+
+        today = datetime.utcnow().date()
+        month_start = today.replace(day=1)
+
+        # Shipments
+        total_shipments = db.query(Shipment).filter(Shipment.is_deleted == False).count()
+        shipments_today = db.query(Shipment).filter(
+            Shipment.is_deleted == False,
+            Shipment.created_at >= today
+        ).count()
+        shipments_this_month = db.query(Shipment).filter(
+            Shipment.is_deleted == False,
+            Shipment.created_at >= month_start
+        ).count()
+
+        # Payments
+        total_payments = db.query(Payment).filter(Payment.is_deleted == False).count()
+        pending_payments = db.query(Payment).filter(
+            Payment.is_deleted == False,
+            Payment.payment_status == PaymentStatus.PENDING
+        ).count()
+        completed_payments = db.query(Payment).filter(
+            Payment.is_deleted == False,
+            Payment.payment_status == PaymentStatus.COMPLETED
+        ).count()
+
+        # Users
+        active_couriers = db.query(User).filter(
+            User.is_deleted == False,
+            User.is_active == True,
+            User.user_type == "supplier"
+        ).count()
+        total_users = db.query(User).filter(User.is_deleted == False).count()
+
+        # Prepare response
+        dashboard_data = {
+            "total_shipments": total_shipments,
+            "shipments_today": shipments_today,
+            "shipments_this_month": shipments_this_month,
+            "total_payments": total_payments,
+            "pending_payments": pending_payments,
+            "completed_payments": completed_payments,
+            "active_couriers": active_couriers,
+            "total_users": total_users
+        }
+
+        
+        # Add total revenue for everyone except super_admin
+        if user_obj.user_type != "super_admin":
+            total_revenue = db.query(
+                func.coalesce(func.sum(Package.final_cost), 0)
+            ).join(Payment.package).filter(
+                Payment.is_deleted == False,
+                Payment.payment_status == PaymentStatus.COMPLETED
+            ).scalar()
+            dashboard_data["total_revenue"] = float(total_revenue)
+
+        return dashboard_data
+    

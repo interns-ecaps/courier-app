@@ -48,6 +48,7 @@ class CurrencyService:
         if not currency:
             raise Exception("currency is required")
         currency_obj = Currency(currency=currency_data.currency)
+
     @staticmethod
     async def create_currency(request, currency_data: CreateCurrency, db: Session):
         user_id = request.state.user.get("sub", None)
@@ -63,7 +64,6 @@ class CurrencyService:
             )
 
         currency_value = currency_data.currency.strip()
-
 
         if not currency_value:
             raise HTTPException(
@@ -83,7 +83,7 @@ class CurrencyService:
         db.commit()
         db.refresh(currency_obj)
         return currency_obj
-       
+
     @staticmethod
     async def update_currency(currency_id: int, new_data: CreateCurrency, db: Session):
         currency = db.query(Currency).filter(Currency.id == currency_id).first()
@@ -186,7 +186,7 @@ class CurrencyService:
         db.commit()
         db.refresh(currency)
         return currency
-    
+
     @staticmethod
     async def get_currency_by_id(currency_id: int, db: Session):
         currency = db.query(Currency).filter(Currency.id == currency_id).first()
@@ -774,15 +774,17 @@ class StatusTrackerService:
             )
 
         # Check if a status tracker already exists for this shipment
-        existing_status = db.query(StatusTracker).filter(
-            StatusTracker.shipment_id == request_data.shipment_id,
-            Payment.is_deleted == False
-        ).first()
+        existing_status = (
+            db.query(StatusTracker)
+            .filter(
+                StatusTracker.shipment_id == request_data.shipment_id,
+                Payment.is_deleted == False,
+            )
+            .first()
+        )
 
         if existing_status:
-            raise HTTPException(
-                status_code=400, detail="Shipment already exists"
-            )
+            raise HTTPException(status_code=400, detail="Shipment already exists")
 
         # Create the tracker
         tracker = StatusTracker(
@@ -991,35 +993,47 @@ class StatusTrackerService:
 
 class PaymentService:
     @staticmethod
-    async def create_payment(request, payment_data : CreatePayment, db: Session):
+    async def create_payment(request, payment_data: CreatePayment, db: Session):
         user_id = request.state.user.get("sub", None)
-        user = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        user = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
 
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        
+
         # Validate shipment
-        shipment = db.query(Shipment).filter(Shipment.id==payment_data.shipment_id).first()
-        
+        shipment = (
+            db.query(Shipment).filter(Shipment.id == payment_data.shipment_id).first()
+        )
+
         if not shipment:
             raise HTTPException(status_code=404, detail="Shipment not found")
-        
-        existing_payment = db.query(Payment).filter(
-            Payment.shipment_id == payment_data.shipment_id,
-            Payment.payment_status == PaymentStatus.PENDING.value,
-            Payment.is_deleted == False
-        ).first()
+
+        existing_payment = (
+            db.query(Payment)
+            .filter(
+                Payment.shipment_id == payment_data.shipment_id,
+                Payment.payment_status == PaymentStatus.PENDING.value,
+                Payment.is_deleted == False,
+            )
+            .first()
+        )
 
         if existing_payment:
             raise HTTPException(
                 status_code=400, detail="Payment already pending for this shipment"
             )
-        
-        existing_payment = db.query(Payment).filter(
-            Payment.shipment_id == payment_data.shipment_id,
-            Payment.payment_status == PaymentStatus.COMPLETED.value,
-            Payment.is_deleted == False
-        ).first()
+
+        existing_payment = (
+            db.query(Payment)
+            .filter(
+                Payment.shipment_id == payment_data.shipment_id,
+                Payment.payment_status == PaymentStatus.COMPLETED.value,
+                Payment.is_deleted == False,
+            )
+            .first()
+        )
 
         if existing_payment:
             raise HTTPException(
@@ -1033,8 +1047,6 @@ class PaymentService:
             payment_status=payment_data.payment_status,
             payment_date=payment_data.payment_date,
         )
-
-
 
         db.add(payment)
         db.commit()
