@@ -8,6 +8,7 @@ from core.decorators.token_required import token_required
 from shipment.api.v1.endpoints import routes
 from user import views
 from user.api.v1.models.address import Address
+from user.api.v1.models.users import UserType
 from user.views import (
     CountryService,
     DashboardService,
@@ -52,6 +53,12 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
 def register_user(request: SignUpRequest, db: Session = Depends(get_db)):
     return signup_user(request, db)
 
+@user_router.get("/user-types")
+def get_user_types():
+    return [
+        {"value": user_type.value,  "label": user_type.name.replace("_", " ").title()}
+        for user_type in UserType if user_type != "super_admin"
+    ]
 
 @user_router.post("/create_user/")
 def create_user(request: CreateUser, db: Session = Depends(get_db)):
