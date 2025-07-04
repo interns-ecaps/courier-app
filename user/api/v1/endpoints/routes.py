@@ -8,6 +8,7 @@ from core.decorators.token_required import token_required
 from shipment.api.v1.endpoints import routes
 from user import views
 from user.api.v1.models.address import Address
+from user.api.v1.models.users import UserType
 from user.views import (
     CountryService,
     UserService,
@@ -104,6 +105,12 @@ async def patch_user(
 @token_required
 async def replace_user(request: Request,user_id: int, payload: ReplaceUser, db: Session = Depends(get_db)):
     return await UserService.replace_user(request, user_id, payload, db)
+@user_router.get("/user-types")
+def get_user_types():
+    return [
+        {"value": user_type.value,  "label": user_type.name.replace("_", " ").title()}
+        for user_type in UserType if user_type != "super_admin"
+    ]
 
 
 
