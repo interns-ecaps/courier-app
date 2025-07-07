@@ -46,8 +46,16 @@ from user.api.v1.models.address import Country
 from user.api.v1.schemas.user import CreateAddress  # 👈 import your schema
 
 
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    print(plain_password, hashed_password)
+    return pwd_context.verify(plain_password, hashed_password)
 
 def get_db():
     db = SessionLocal()
@@ -55,11 +63,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
 
 def login_user(email: str, password: str, db: Session):
     # 1. Fetch the user from the DB
@@ -250,14 +253,19 @@ class UserService:
                 raise HTTPException(status_code=400, detail="Email already in use.")
 
         # Only super_admin can soft delete
-        if user_data.is_deleted == False:
-            if user_obj.user_type != "super_admin":
-                raise HTTPException(
-                    status_code=403, detail="Only super admins can delete users"
-                )
+        # if user_data.is_deleted == False:
+        #     if user_obj.user_type != "super_admin":
+        #         raise HTTPException(status_code=403, detail="Only super admins can delete users")
 
         for field, value in user_data.dict(exclude_unset=True).items():
-            setattr(user_obj, field, value)
+            if field == "password":
+                if not verify_password(user_data.current_password, user_obj.hashed_password):
+                    raise HTTPException(status_code=400, detail="Incorrect password")
+                print(value, "::value")
+                hashed = hash_password(value)
+                setattr(user_obj, "hashed_password", hashed)
+            else:
+                setattr(user_obj, field, value)
 
         db.commit()
         db.refresh(user_obj)

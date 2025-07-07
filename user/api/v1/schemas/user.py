@@ -130,9 +130,19 @@ class UpdateUser(BaseModel):
     email: Optional[Annotated[EmailStr, Field(description="Valid email address")]] = (
         None
     )
-    password: Annotated[
-        str, Field(min_length=6, max_length=15, description="Password (min 6 chars)")
-    ]
+    current_password: Optional[
+            Annotated[
+                str,
+                Field(min_length=6, max_length=15, description="Password (min 6 chars)")
+            ]
+        ] = None
+    password: Optional[
+            Annotated[
+                str,
+                Field(min_length=6, max_length=15, description="Password (min 6 chars)")
+            ]
+        ] = None
+    
     phone_number: Optional[
         Annotated[
             str,
