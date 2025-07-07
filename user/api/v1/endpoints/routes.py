@@ -97,7 +97,6 @@ async def patch_user(
     payload: UpdateUser = Body(...),  # <- ensures proper parsing of partial JSON
     db: Session = Depends(get_db),
 ):
-    print(request.dict(exclude_unset=False))
     return await views.UserService.update_user(request, user_id, payload, db)
 
 
