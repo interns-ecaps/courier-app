@@ -112,6 +112,12 @@ async def patch_user(
 @token_required
 async def replace_user(request: Request,user_id: int, payload: ReplaceUser, db: Session = Depends(get_db)):
     return await UserService.replace_user(request, user_id, payload, db)
+@user_router.get("/user-types")
+def get_user_types():
+    return [
+        {"value": user_type.value,  "label": user_type.name.replace("_", " ").title()}
+        for user_type in UserType if user_type != "super_admin"
+    ]
 
 
 
