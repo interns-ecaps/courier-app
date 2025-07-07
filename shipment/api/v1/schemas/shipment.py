@@ -164,6 +164,8 @@ class FetchShipment(BaseModel):
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
 
+    latest_status: Optional[str] = None
+
     class Config:
         from_attributes = True
 

@@ -323,14 +323,20 @@ class ShipmentService:
         db.refresh(new_shipment)
         return new_shipment
 
+    @staticmethod
     async def get_shipments(
         request,
         db: Session,
-        user_id: Optional[int] = None,
+        shipment_id: Optional[int] = None,
+        sender_id: Optional[int] = None,
+        recipient_id: Optional[int] = None,
+        user_id: Optional[int] = None,  # retained for backward compatibility
         package_type: Optional[str] = None,
         currency_id: Optional[int] = None,
+        courier_id: Optional[int] = None,
         is_negotiable: Optional[bool] = None,
         shipment_type: Optional[str] = None,
+        status_type: Optional[str] = None,
         pickup_from: Optional[datetime] = None,
         pickup_to: Optional[datetime] = None,
         page: int = 1,
@@ -347,63 +353,158 @@ class ShipmentService:
         if not user_obj:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # # Start base query
-        # query = db.query(Shipment).filter(Shipment.is_deleted == False)
+        # Start with all statuses (used to get shipment IDs)
+        statuses_obj = db.query(StatusTracker).all()
 
-        if user_obj.user_type == "super_admin":
-            query = db.query(Shipment).filter(Shipment.is_deleted == False)
-        else:
-            query = db.query(Shipment).filter(
-                Shipment.sender_id == user_obj.id, Shipment.is_deleted == False
-            )
-        # Optional filter: shipment type
-        if shipment_type:
-            try:
-                query = query.filter(
-                    Shipment.shipment_type == ShipmentType(shipment_type)
+        # Apply status filter if passed
+        if status_type:
+            statuses_obj = [s for s in statuses_obj if s.status.lower() == status_type.lower()]
+
+        shipment_ids = {s.shipment_id for s in statuses_obj}
+
+        # Build base query with shipment_ids found from statuses
+        query = db.query(Shipment).filter(Shipment.id.in_(shipment_ids), Shipment.is_deleted == False)
+
+        # Role-based filters
+        if user_obj.user_type not in ["super_admin", "supplier"]:
+            query = query.filter(
+                or_(
+                    Shipment.sender_id == user_obj.id,
+                    Shipment.recipient_id == user_obj.id,
                 )
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid shipment type")
+            )
 
-        # Pickup date range filters
-        if pickup_from and pickup_to:
-            query = query.filter(Shipment.pickup_date.between(pickup_from, pickup_to))
-        elif pickup_from:
+        # Optional filters
+        if shipment_id is not None:
+            query = query.filter(Shipment.id == shipment_id)
+        if sender_id is not None:
+            query = query.filter(Shipment.sender_id == sender_id)
+        if recipient_id is not None:
+            query = query.filter(Shipment.recipient_id == recipient_id)
+        if package_type is not None:
+            query = query.filter(Shipment.package_type == package_type)
+        if currency_id is not None:
+            query = query.filter(Shipment.currency_id == currency_id)
+        if courier_id is not None:
+            query = query.filter(Shipment.courier_id == courier_id)
+        if is_negotiable is not None:
+            query = query.filter(Shipment.is_negotiable == is_negotiable)
+        if shipment_type is not None:
+            query = query.filter(Shipment.shipment_type == shipment_type)
+        if pickup_from is not None:
             query = query.filter(Shipment.pickup_date >= pickup_from)
-        elif pickup_to:
+        if pickup_to is not None:
             query = query.filter(Shipment.pickup_date <= pickup_to)
 
-        # Package-related filters
-        if any([package_type, currency_id, is_negotiable is not None]):
-            query = query.join(Shipment.packages)
+        # Pagination
+        offset = (page - 1) * limit
+        shipment_objs = query.order_by(Shipment.created_at.desc()).offset(offset).limit(limit).all()
 
-            if package_type:
-                try:
-                    query = query.filter(
-                        Package.package_type == PackageType(package_type)
-                    )
-                except ValueError:
-                    raise HTTPException(status_code=400, detail="Invalid package type")
+        results = []
+        for shipment in shipment_objs:
+            # Get latest status from StatusTracker (if multiple)
+            latest_status = (
+                db.query(StatusTracker)
+                .filter(StatusTracker.shipment_id == shipment.id)
+                .order_by(StatusTracker.created_at.desc())
+                .first()
+            )
 
-            if currency_id is not None:
-                query = query.filter(Package.currency_id == currency_id)
+            shipment_data = {
+                "id": shipment.id,
+                "tracking_number": shipment.tracking_number,
+                "sender_id": shipment.sender_id,
+                "sender_name": shipment.sender_name,
+                "sender_phone": shipment.sender_phone,
+                "sender_email": shipment.sender_email,
+                "recipient_id": shipment.recipient_id,
+                "recipient_name": shipment.recipient_name,
+                "recipient_phone": shipment.recipient_phone,
+                "recipient_email": shipment.recipient_email,
+                "courier_id": shipment.courier_id,
+                "pickup_address_id": shipment.pickup_address_id,
+                "delivery_address_id": shipment.delivery_address_id,
+                "status_type": latest_status.status if latest_status else "PENDING",
+                "pickup_date": shipment.pickup_date,
+                "delivery_date": shipment.delivery_date,
+                "estimated_delivery": shipment.estimated_delivery,
+                "special_instructions": shipment.special_instructions,
+                "insurance_required": shipment.insurance_required,
+                "signature_required": shipment.signature_required,
+                "package_id": shipment.package_id,
+                "is_deleted": shipment.is_deleted,
+                "created_at": shipment.created_at,
+                "updated_at": shipment.updated_at,
+            }
+            results.append(shipment_data)
 
-            if is_negotiable is not None:
-                query = query.filter(Package.is_negotiable == is_negotiable)
-
-        if user_id:
-            query = query.filter(Shipment.sender_id == user_id)
-
-        # Fetch results with pagination
-        total = query.distinct().count()
-        shipments = query.distinct().offset((page - 1) * limit).limit(limit).all()
+        total = query.count()
 
         return {
             "page": page,
             "limit": limit,
             "total": total,
-            "results": [FetchShipment.model_validate(s) for s in shipments],
+            "results": results,
         }
+
+
+        # # # Start base query
+        # # query = db.query(Shipment).filter(Shipment.is_deleted == False)
+
+        # if user_obj.user_type == "super_admin" or user_obj.user_type == "supplier":
+        #     query = db.query(Shipment).filter(Shipment.is_deleted == False)
+        # else:
+        #     query = db.query(Shipment).filter(
+        #         Shipment.sender_id == user_obj.id, Shipment.is_deleted == False
+        #     )
+        # # Optional filter: shipment type
+        # if shipment_type:
+        #     try:
+        #         query = query.filter(
+        #             Shipment.shipment_type == ShipmentType(shipment_type)
+        #         )
+        #     except ValueError:
+        #         raise HTTPException(status_code=400, detail="Invalid shipment type")
+
+        # # Pickup date range filters
+        # if pickup_from and pickup_to:
+        #     query = query.filter(Shipment.pickup_date.between(pickup_from, pickup_to))
+        # elif pickup_from:
+        #     query = query.filter(Shipment.pickup_date >= pickup_from)
+        # elif pickup_to:
+        #     query = query.filter(Shipment.pickup_date <= pickup_to)
+
+        # # Package-related filters
+        # if any([package_type, currency_id, is_negotiable is not None]):
+        #     query = query.join(Shipment.packages)
+
+        #     if package_type:
+        #         try:
+        #             query = query.filter(
+        #                 Package.package_type == PackageType(package_type)
+        #             )
+        #         except ValueError:
+        #             raise HTTPException(status_code=400, detail="Invalid package type")
+
+        #     if currency_id is not None:
+        #         query = query.filter(Package.currency_id == currency_id)
+
+        #     if is_negotiable is not None:
+        #         query = query.filter(Package.is_negotiable == is_negotiable)
+
+        # if user_id:
+        #     query = query.filter(Shipment.sender_id == user_id)
+        
+        # # Fetch results with pagination
+        # total = query.distinct().count()
+        # shipments = query.distinct().offset((page - 1) * limit).limit(limit).all()
+
+        # return {
+        #     "page": page,
+        #     "limit": limit,
+        #     "total": total,
+        #     "results": [FetchShipment.model_validate(s) for s in shipments],
+        # }
 
     @staticmethod
     async def get_shipment_by_id(request, shipment_id: int, db: Session):

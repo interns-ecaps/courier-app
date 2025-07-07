@@ -356,7 +356,7 @@ class AddressService:
         if not user_obj:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # 👇 New logic: convert recipient_email → user_id
+        # Logic 1: resolve recipient_email to user_id
         if recipient_email:
             recipient = (
                 db.query(User)
@@ -365,21 +365,26 @@ class AddressService:
             )
             if not recipient:
                 raise HTTPException(status_code=404, detail="Recipient not found")
-            user_id = recipient.id  # ← override user_id for address filter
+            user_id = recipient.id  # override
 
-        # ─────────────────────────────────────────────
+        # Query start
         query = (
             db.query(Address)
             .options(joinedload(Address.user), joinedload(Address.country))
             .filter(Address.is_deleted == False)
         )
 
-        # 1) Non‑admins can only see their own addresses
-        if user_obj.user_type != "super_admin":
-            query = query.filter(Address.user_id == current_user_id)
-        # 2) Super‑admins can pass ?user_id= or ?recipient_email=
-        elif user_id is not None:
+        # Logic 2: enforce visibility rules
+        if user_obj.user_type == "super_admin":
+            if user_id is not None:
+                query = query.filter(Address.user_id == user_id)
+        elif recipient_email:
+            # allow viewing recipient's addresses by email for all users
             query = query.filter(Address.user_id == user_id)
+        else:
+            # default: only own addresses
+            query = query.filter(Address.user_id == current_user_id)
+
 
         # 3) Single address lookup
         if address_id:
