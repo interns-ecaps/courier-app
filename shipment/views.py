@@ -1,5 +1,6 @@
 from datetime import datetime
 from fastapi import HTTPException, status
+from sqlalchemy import or_
 from shipment.api.v1.models.package import Currency, Package, PackageType
 from shipment.api.v1.models.status import ShipmentStatus, StatusTracker
 from shipment.api.v1.models.shipment import Shipment
