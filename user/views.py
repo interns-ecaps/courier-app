@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
+from pydantic import EmailStr
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, Query, Request, status
 
 from passlib.context import CryptContext
 
@@ -95,6 +96,7 @@ def login_user(email: str, password: str, db: Session):
             "last_name": user.last_name,
             "user_type": user.user_type,
         },
+        "success": True,
     }
 
 
@@ -119,7 +121,7 @@ def signup_user(user_data: SignUpRequest, db: Session):
     db.commit()
     db.refresh(new_user)
 
-    return {"user_id": new_user.id, "email": new_user.email}
+    return {"user_id": new_user.id, "email": new_user.email, "success": True}
 
 
 class UserService:
@@ -158,31 +160,44 @@ class UserService:
         page: int = 1,
         limit: int = 10,
     ):
-        user_id = request.state.user.get("sub", None)
-
+        current_user_id = request.state.user.get("sub", None)
         user_obj = (
-            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+            db.query(User)
+            .filter(User.id == current_user_id, User.is_deleted == False)
+            .first()
         )
         if not user_obj:
             raise HTTPException(status_code=404, detail="User not found")
 
+        # 1) Super‑admins can see everyone
         if user_obj.user_type == "super_admin":
             query = db.query(User).filter(User.is_deleted == False)
+
+        # 2) Non‑admins requesting suppliers → all suppliers
+        elif user_type == "supplier":
+            query = (
+                db.query(User)
+                .filter(
+                    User.is_deleted == False,
+                    User.user_type == "supplier",
+                )
+            )
+
+        # 3) Everyone else → only self
         else:
-            query = db.query(User).filter(User.id == user_id, User.is_deleted == False)
+            query = (
+                db.query(User)
+                .filter(
+                    User.is_deleted == False,
+                    User.id == current_user_id,
+                )
+            )
 
-        if user_id:
-            query = query.filter(User.id == user_id)
-
+        # Apply additional filters *only* if they were supplied
         if email:
             query = query.filter(User.email == email)
-
-        if user_type:
-            query = query.filter(User.user_type == user_type)
-
         if is_active is not None:
             query = query.filter(User.is_active == is_active)
-
         if first_name:
             query = query.filter(User.first_name.ilike(f"%{first_name}%"))
 
@@ -196,22 +211,23 @@ class UserService:
             "results": [FetchUser.model_validate(u) for u in users],
         }
 
-    # async def get_user_by_id(request, user_id: int, db: Session):
-    #     user_id = request.state.user.get("sub", None)
-    #     user_obj = (
-    #         db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
-    #     )
-    #     if not user_obj:
-    #         raise HTTPException(status_code=404, detail="User not found")
 
-    #     user = (
-    #         db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
-    #     )
+    async def get_user_by_id(request, user_id: int, db: Session):
+        user_id = request.state.user.get("sub", None)
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
+        if not user_obj:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    #     if not user:
-    #         raise HTTPException(status_code=404, detail="User not found")
+        user = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
 
-    #     return FetchUser.model_validate(user)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        return FetchUser.model_validate(user)
 
     @staticmethod
     async def update_user(request, user_id: int, user_data: UpdateUser, db: Session):
@@ -232,12 +248,13 @@ class UserService:
             existing_user = db.query(User).filter(User.email == user_data.email).first()
             if existing_user:
                 raise HTTPException(status_code=400, detail="Email already in use.")
-            
 
         # Only super_admin can soft delete
         if user_data.is_deleted == False:
             if user_obj.user_type != "super_admin":
-                raise HTTPException(status_code=403, detail="Only super admins can delete users")
+                raise HTTPException(
+                    status_code=403, detail="Only super admins can delete users"
+                )
 
         for field, value in user_data.dict(exclude_unset=True).items():
             setattr(user_obj, field, value)
@@ -322,6 +339,7 @@ class AddressService:
         db: Session,
         address_id: Optional[int] = None,
         user_id: Optional[int] = None,
+        recipient_email: Optional[str] = None,
         city: Optional[str] = None,
         state: Optional[str] = None,
         country_code: Optional[int] = None,
@@ -329,39 +347,54 @@ class AddressService:
         page: int = 1,
         limit: int = 10,
     ):
-        user_id = request.state.user.get("sub", None)
+        current_user_id = request.state.user.get("sub", None)
         user_obj = (
-            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+            db.query(User)
+            .filter(User.id == current_user_id, User.is_deleted == False)
+            .first()
         )
         if not user_obj:
             raise HTTPException(status_code=404, detail="User not found")
-        if address_id:
-            address = (
-                db.query(Address)
-                .filter(Address.user_id == user_obj.id, Address.id == address_id)
+
+        # 👇 New logic: convert recipient_email → user_id
+        if recipient_email:
+            recipient = (
+                db.query(User)
+                .filter(User.email == recipient_email, User.is_deleted == False)
                 .first()
             )
-            if not address:
-                raise HTTPException(status_code=404, detail="Address not found")
-            return FetchAddress.model_validate(address).model_dump()
+            if not recipient:
+                raise HTTPException(status_code=404, detail="Recipient not found")
+            user_id = recipient.id  # ← override user_id for address filter
+
+        # ─────────────────────────────────────────────
         query = (
             db.query(Address)
             .options(joinedload(Address.user), joinedload(Address.country))
             .filter(Address.is_deleted == False)
         )
 
-        if user_id is not None:
+        # 1) Non‑admins can only see their own addresses
+        if user_obj.user_type != "super_admin":
+            query = query.filter(Address.user_id == current_user_id)
+        # 2) Super‑admins can pass ?user_id= or ?recipient_email=
+        elif user_id is not None:
             query = query.filter(Address.user_id == user_id)
 
+        # 3) Single address lookup
+        if address_id:
+            address = query.filter(Address.id == address_id).first()
+            if not address:
+                raise HTTPException(status_code=404, detail="Address not found")
+            return FetchAddress.model_validate(address).model_dump()
+
+        # 4) Additional filters
         if city:
             query = query.filter(Address.city.ilike(f"%{city}%"))
-
         if state:
             query = query.filter(Address.state.ilike(f"%{state}%"))
-
         if country_code is not None:
             query = query.filter(Address.country_code == country_code)
-
         if is_default is not None:
             query = query.filter(Address.is_default == is_default)
 
@@ -374,6 +407,7 @@ class AddressService:
             "total": total,
             "results": [FetchAddress.model_validate(a) for a in addresses],
         }
+
 
     @staticmethod
     async def get_address_by_id(request, address_id: int, db: Session):
@@ -544,7 +578,7 @@ class CountryService:
         if not user_obj:
             raise HTTPException(status_code=404, detail="User not found")
 
-        if  user_obj.user_type != "super_admin":
+        if user_obj.user_type != "super_admin":
             raise HTTPException(
                 status_code=403, detail="Only admin users can edit countries"
             )

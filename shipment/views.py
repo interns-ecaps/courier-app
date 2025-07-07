@@ -406,7 +406,7 @@ class ShipmentService:
         }
 
     @staticmethod
-    async def get_shipment_by_id(shipment_id: int, db: Session):
+    async def get_shipment_by_id(request, shipment_id: int, db: Session):
         shipment = (
             db.query(Shipment)
             .options(joinedload(Shipment.packages))
@@ -645,16 +645,16 @@ class PackageService:
 
         return {"page": page, "limit": limit, "total": total, "results": results}
 
-    # async def get_package_by_id(package_id: int, db: Session):
-    #     package = db.query(Package).filter(Package.id == package_id).first()
+    async def get_package_by_id(request, package_id: int, db: Session):
+        package = db.query(Package).filter(Package.id == package_id).first()
 
-    #     if not package:
-    #         raise HTTPException(status_code=404, detail="Package not found")
+        if not package:
+            raise HTTPException(status_code=404, detail="Package not found")
 
-    #     if package.is_deleted:
-    #         raise HTTPException(status_code=403, detail="Package has been deleted")
+        if package.is_deleted:
+            raise HTTPException(status_code=403, detail="Package has been deleted")
 
-    #     return package
+        return package
 
     @staticmethod
     async def update_package(
@@ -842,21 +842,21 @@ class StatusTrackerService:
             "results": [FetchStatus.model_validate(s) for s in status_records],
         }
 
-    # @staticmethod
-    # async def get_status_by_id(status_id: int, db: Session):
-    #     status_record = (
-    #         db.query(StatusTracker)
-    #         .options(
-    #             joinedload(StatusTracker.shipment), joinedload(StatusTracker.package)
-    #         )
-    #         .filter(StatusTracker.id == status_id, StatusTracker.is_deleted == False)
-    #         .first()
-    #     )
+    @staticmethod
+    async def get_status_by_id(request, status_id: int, db: Session):
+        status_record = (
+            db.query(StatusTracker)
+            .options(
+                joinedload(StatusTracker.shipment), joinedload(StatusTracker.package)
+            )
+            .filter(StatusTracker.id == status_id, StatusTracker.is_deleted == False)
+            .first()
+        )
 
-    #     if not status_record:
-    #         raise HTTPException(status_code=404, detail="Status record not found")
+        if not status_record:
+            raise HTTPException(status_code=404, detail="Status record not found")
 
-    #     return FetchStatus.model_validate(status_record)
+        return FetchStatus.model_validate(status_record)
 
     async def update_status_tracker(
         request,
@@ -1094,19 +1094,19 @@ class PaymentService:
             "results": [FetchPayment.model_validate(p) for p in payments],
         }
 
-    # @staticmethod
-    # async def get_payment_by_id(payment_id: int, db: Session):
-    #     payment = (
-    #         db.query(Payment)
-    #         .options(joinedload(Payment.shipment), joinedload(Payment.package))
-    #         .filter(Payment.id == payment_id, Payment.is_deleted == False)
-    #         .first()
-    #     )
+    @staticmethod
+    async def get_payment_by_id(request, payment_id: int, db: Session):
+        payment = (
+            db.query(Payment)
+            .options(joinedload(Payment.shipment), joinedload(Payment.package))
+            .filter(Payment.id == payment_id, Payment.is_deleted == False)
+            .first()
+        )
 
-    #     if not payment:
-    #         raise HTTPException(status_code=404, detail="Payment not found")
+        if not payment:
+            raise HTTPException(status_code=404, detail="Payment not found")
 
-    #     return FetchPayment.model_validate(payment)
+        return FetchPayment.model_validate(payment)
 
     @staticmethod
     async def update_payment(
