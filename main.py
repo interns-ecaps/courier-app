@@ -6,10 +6,7 @@ from user.api.v1.endpoints import api_router as user_router
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Your React app's Vite dev server
-        "http://127.0.0.1:5173",  # Optional fallback
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
