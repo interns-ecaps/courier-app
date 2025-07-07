@@ -11,6 +11,7 @@ from user.api.v1.models.address import Address
 from user.api.v1.models.users import UserType
 from user.views import (
     CountryService,
+    DashboardService,
     UserService,
     signup_user,
     AddressService
@@ -182,7 +183,7 @@ async def update_address(
 async def replace_address_route(
     request: Request,address_id: int, payload: CreateAddress, db: Session = Depends(get_db)
 ):
-    return await AddressService.replace_address(address_id, payload, db)
+    return await AddressService.replace_address(request,address_id, payload, db)
 
 
 # ======================= COUNTRIES =======================
@@ -225,3 +226,9 @@ async def update_country(
     request: Request,country_id: int, country_data: UpdateCountry, db: Session = Depends(get_db)
 ):
     return await CountryService.update_country(request, country_id, country_data, db)
+
+@user_router.get("/dashboard")
+@token_required
+async def get_dashboard(request: Request, db: Session = Depends(get_db)):
+    user_info = getattr(request.state, "user", None)
+    return await DashboardService.get_dashboard_data(request, db, user_info)

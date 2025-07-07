@@ -380,23 +380,27 @@ class CreateAddress(BaseModel):
         ]
     ] = None
 
-    latitude: Annotated[
-        float,
-        Field(
-            ge=-90,
-            le=90,
-            description="Latitude of the location. Must be between -90 and 90.",
-        ),
-    ]
+    latitude: Optional[
+        Annotated[
+            float,
+            Field(
+                ge=-90,
+                le=90,
+                description="Latitude of the location. Must be between -90 and 90.",
+            ),
+        ]
+    ] = None
 
-    longitude: Annotated[
-        float,
-        Field(
-            ge=-180,
-            le=180,
-            description="Longitude of the location. Must be between -180 and 180.",
-        ),
-    ]
+    longitude: Optional[
+        Annotated[
+            float,
+            Field(
+                ge=-180,
+                le=180,
+                description="Longitude of the location. Must be between -180 and 180.",
+            ),
+        ]
+    ] = None
 
     is_default: bool = Field(
         default=False,
