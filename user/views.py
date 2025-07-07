@@ -348,6 +348,7 @@ class AddressService:
             db.query(Address)
             .options(joinedload(Address.user), joinedload(Address.country))
             .filter(Address.is_deleted == False)
+            .order_by(Address.updated_at.desc())
         )
 
         if user_id is not None:
@@ -426,6 +427,7 @@ class AddressService:
             )
 
         for field, value in update_data.dict(exclude_unset=True).items():
+            print(field, value)
             setattr(address, field, value)
 
         db.commit()

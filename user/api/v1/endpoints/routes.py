@@ -172,7 +172,7 @@ async def update_address(
 async def replace_address_route(
     request: Request,address_id: int, payload: CreateAddress, db: Session = Depends(get_db)
 ):
-    return await AddressService.replace_address(address_id, payload, db)
+    return await AddressService.replace_address(request,address_id, payload, db)
 
 
 # ======================= COUNTRIES =======================
