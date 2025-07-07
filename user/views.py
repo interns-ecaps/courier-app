@@ -385,6 +385,7 @@ class AddressService:
             db.query(Address)
             .options(joinedload(Address.user), joinedload(Address.country))
             .filter(Address.is_deleted == False)
+            .order_by(Address.updated_at.desc())
         )
 
         # 1) Non‑admins can only see their own addresses
@@ -473,6 +474,7 @@ class AddressService:
             )
 
         for field, value in update_data.dict(exclude_unset=True).items():
+            print(field, value)
             setattr(address, field, value)
 
         db.commit()
