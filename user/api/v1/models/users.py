@@ -59,9 +59,6 @@ class User(Base):
     sent_shipments = relationship(
         "Shipment", foreign_keys="[Shipment.sender_id]", back_populates="sender"
     )
-    received_shipments = relationship(
-        "Shipment", foreign_keys="[Shipment.recipient_id]", back_populates="recipient"
-    )
     courier_shipments = relationship(
         "Shipment", back_populates="courier", foreign_keys="[Shipment.courier_id]"
     )

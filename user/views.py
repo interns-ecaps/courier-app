@@ -369,7 +369,7 @@ class AddressService:
         if not user_obj:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # 👇 New logic: convert recipient_email → user_id
+        # Logic 1: resolve recipient_email to user_id
         if recipient_email:
             recipient = (
                 db.query(User)
@@ -378,9 +378,9 @@ class AddressService:
             )
             if not recipient:
                 raise HTTPException(status_code=404, detail="Recipient not found")
-            user_id = recipient.id  # ← override user_id for address filter
+            user_id = recipient.id  # override
 
-        # ─────────────────────────────────────────────
+        # Query start
         query = (
             db.query(Address)
             .options(joinedload(Address.user), joinedload(Address.country))
@@ -388,12 +388,17 @@ class AddressService:
             .order_by(Address.is_default.desc(), Address.updated_at.desc())
         )
 
-        # 1) Non‑admins can only see their own addresses
-        if user_obj.user_type != "super_admin":
-            query = query.filter(Address.user_id == current_user_id)
-        # 2) Super‑admins can pass ?user_id= or ?recipient_email=
-        elif user_id is not None:
+        # Logic 2: enforce visibility rules
+        if user_obj.user_type == "super_admin":
+            if user_id is not None:
+                query = query.filter(Address.user_id == user_id)
+        elif recipient_email:
+            # allow viewing recipient's addresses by email for all users
             query = query.filter(Address.user_id == user_id)
+        else:
+            # default: only own addresses
+            query = query.filter(Address.user_id == current_user_id)
+
 
         # 3) Single address lookup
         if address_id:
@@ -787,41 +792,32 @@ class DashboardService:
         elif user_type == "importer_exporter":
             return {
                 "total_shipments": shipments_query().filter(
-                    (Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)
+                    Shipment.sender_id == user_id
                 ).count(),
-                "shipments_imported": shipments_query().filter(Shipment.recipient_id == user_id).count(),
+                "shipments_imported": 0,
                 "shipments_exported": shipments_query().filter(Shipment.sender_id == user_id).count(),
                 "shipments_today": shipments_query().filter(
-                    ((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)),
+                    Shipment.sender_id == user_id,
                     Shipment.created_at >= today
                 ).count(),
                 "shipments_this_month": shipments_query().filter(
-                    ((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)),
+                    Shipment.sender_id == user_id,
                     Shipment.created_at >= month_start
                 ).count(),
                 "active_shipments": db.query(Shipment).join(StatusTracker).filter(
                     Shipment.is_deleted == False,
-                    ((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)),
+                    Shipment.sender_id == user_id,
                     StatusTracker.status.in_([ShipmentStatus.IN_TRANSIT, ShipmentStatus.PENDING])
                 ).count(),
                 "delivered_shipments": db.query(Shipment).join(StatusTracker).filter(
                     Shipment.is_deleted == False,
-                    ((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)),
+                    Shipment.sender_id == user_id,
                     StatusTracker.status == ShipmentStatus.DELIVERED
                 ).count(),
                 # Payments made by this user (as importer/exporter = recipient)
-                "total_payments_made": db.query(Payment).join(Shipment).filter(
-                    Shipment.recipient_id == user_id,
-                    Payment.payment_status == PaymentStatus.COMPLETED
-                ).count(),
-                "pending_payments": db.query(Payment).join(Shipment).filter(
-                    Shipment.recipient_id == user_id,
-                    Payment.payment_status == PaymentStatus.PENDING
-                ).count(),
-                "completed_payments": db.query(Payment).join(Shipment).filter(
-                    Shipment.recipient_id == user_id,
-                    Payment.payment_status == PaymentStatus.COMPLETED
-                ).count(),
+                "total_payments_made": 0,
+                "pending_payments": 0,
+                "completed_payments": 0,
                 "addresses_count": db.query(Address).filter(Address.user_id == user_id).count(),
                 "shipments_per_month": get_shipments_per_month(db, user_type, user_id),
                 "revenue_per_month": get_revenue_per_month(db, user_type, user_id),
@@ -848,7 +844,7 @@ def get_shipments_per_month(db, user_type, user_id):
         if user_type == "supplier":
             query = query.filter(Shipment.sender_id == user_id)
         elif user_type == "importer_exporter":
-            query = query.filter((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id))
+            query = query.filter(Shipment.sender_id == user_id)
         # super_admin sees all
         months.append(first_day.strftime("%b %Y"))
         counts.append(query.count())
@@ -870,7 +866,7 @@ def get_revenue_per_month(db, user_type, user_id):
         if user_type == "supplier":
             query = query.filter(Shipment.sender_id == user_id)
         elif user_type == "importer_exporter":
-            query = query.filter((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id))
+            query = query.filter(Shipment.sender_id == user_id)
         # super_admin sees all
         months.append(first_day.strftime("%b %Y"))
         revenue.append(float(query.scalar() or 0))

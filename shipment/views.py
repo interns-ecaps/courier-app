@@ -1,5 +1,6 @@
 from datetime import datetime
 from fastapi import HTTPException, status
+from sqlalchemy import or_
 from shipment.api.v1.models.package import Currency, Package, PackageType
 from shipment.api.v1.models.status import ShipmentStatus, StatusTracker
 from shipment.api.v1.models.shipment import Shipment
@@ -209,61 +210,19 @@ class ShipmentService:
                 detail="Pickup address does not belong to the sender or does not exist",
             )
 
-        # Fetch recipient by ID or email
-        recipient = None
-        # if shipment_data.recipient_id:
-        #     recipient = db.query(User).filter(
-        #         User.id == shipment_data.recipient_id,
-        #         User.is_deleted == False,
-        #         User.is_active == True
-        #     ).first()
-        # el
-        if shipment_data.recipient_email:
-            recipient = (
-                db.query(User)
-                .filter(
-                    User.email == shipment_data.recipient_email,
-                    User.is_deleted == False,
-                    User.is_active == True,
-                )
-                .first()
-            )
-
-        if not recipient:
-            raise HTTPException(
-                status_code=404, detail="Recipient not found or inactive"
-            )
-
-        # Validate delivery address
-        delivery_address = (
-            db.query(Address)
-            .filter(
-                Address.id == shipment_data.delivery_address_id,
-                Address.user_id == recipient.id,
-                Address.is_deleted == False,
-            )
-            .first()
-        )
-
-        if not delivery_address:
-            raise HTTPException(
-                status_code=400,
-                detail="Delivery address does not belong to the recipient or does not exist",
-            )
-
-        # Validate courier
-        courier = (
+        # Validate assigned supplier (courier_id is still used for assignment, but user_type is always 'supplier')
+        assigned_supplier = (
             db.query(User)
             .filter(
                 User.id == shipment_data.courier_id,
                 User.is_deleted == False,
                 User.is_active == True,
+                User.user_type == "supplier"
             )
             .first()
         )
-
-        if not courier:
-            raise HTTPException(status_code=400, detail="Courier not found or inactive")
+        if not assigned_supplier:
+            raise HTTPException(status_code=400, detail="Assigned supplier not found or inactive")
 
         # Validate package
         package = (
@@ -297,18 +256,18 @@ class ShipmentService:
             sender_phone=user_obj.phone_number,
             sender_email=user_obj.email,
             pickup_address_id=shipment_data.pickup_address_id,
-            recipient_id=recipient.id,
-            recipient_name=recipient.first_name + " " + recipient.last_name,
-            recipient_phone=recipient.phone_number,
-            recipient_email=recipient.email,
-            delivery_address_id=shipment_data.delivery_address_id,
+            delivery_address_text=shipment_data.delivery_address_text,
+            recipient_name=shipment_data.recipient_name,
+            recipient_phone=shipment_data.recipient_phone,
+            recipient_email=shipment_data.recipient_email,
             courier_id=shipment_data.courier_id,
-            shipment_type=shipment_type,
+            shipment_type=shipment_data.shipment_type,
             package_id=shipment_data.package_id,
             pickup_date=shipment_data.pickup_date,
             special_instructions=shipment_data.special_instructions,
             insurance_required=shipment_data.insurance_required,
             signature_required=shipment_data.signature_required,
+            
         )
 
         db.add(new_shipment)
@@ -323,14 +282,19 @@ class ShipmentService:
         db.refresh(new_shipment)
         return new_shipment
 
+    @staticmethod
     async def get_shipments(
         request,
         db: Session,
-        user_id: Optional[int] = None,
+        shipment_id: Optional[int] = None,
+        sender_id: Optional[int] = None,
+        user_id: Optional[int] = None,  # retained for backward compatibility
         package_type: Optional[str] = None,
         currency_id: Optional[int] = None,
+        courier_id: Optional[int] = None,
         is_negotiable: Optional[bool] = None,
         shipment_type: Optional[str] = None,
+        status_type: Optional[str] = None,
         pickup_from: Optional[datetime] = None,
         pickup_to: Optional[datetime] = None,
         page: int = 1,
@@ -347,63 +311,162 @@ class ShipmentService:
         if not user_obj:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # # Start base query
-        # query = db.query(Shipment).filter(Shipment.is_deleted == False)
+        # Start with all statuses (used to get shipment IDs)
+        statuses_obj = db.query(StatusTracker).all()
 
+        # Apply status filter if passed
+        if status_type:
+            statuses_obj = [s for s in statuses_obj if s.status.lower() == status_type.lower()]
+
+        shipment_ids = {s.shipment_id for s in statuses_obj}
+
+        # Build base query with shipment_ids found from statuses
+        query = db.query(Shipment).filter(Shipment.id.in_(shipment_ids), Shipment.is_deleted == False)
+
+        # Role-based filters
         if user_obj.user_type == "super_admin":
-            query = db.query(Shipment).filter(Shipment.is_deleted == False)
+            pass  # See all shipments
+        elif user_obj.user_type == "supplier":
+            query = query.filter(Shipment.courier_id == user_obj.id)
+        elif user_obj.user_type == "importer_exporter":
+            query = query.filter(Shipment.sender_id == user_obj.id)
         else:
-            query = db.query(Shipment).filter(
-                Shipment.sender_id == user_obj.id, Shipment.is_deleted == False
-            )
-        # Optional filter: shipment type
-        if shipment_type:
-            try:
-                query = query.filter(
-                    Shipment.shipment_type == ShipmentType(shipment_type)
-                )
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid shipment type")
+            # Default: no shipments
+            query = query.filter(False)
 
-        # Pickup date range filters
-        if pickup_from and pickup_to:
-            query = query.filter(Shipment.pickup_date.between(pickup_from, pickup_to))
-        elif pickup_from:
+        # Optional filters
+        if shipment_id is not None:
+            query = query.filter(Shipment.id == shipment_id)
+        if sender_id is not None:
+            query = query.filter(Shipment.sender_id == sender_id)
+        if package_type is not None:
+            query = query.filter(Shipment.package_type == package_type)
+        if currency_id is not None:
+            query = query.filter(Shipment.currency_id == currency_id)
+        if courier_id is not None:
+            query = query.filter(Shipment.courier_id == courier_id)
+        if is_negotiable is not None:
+            query = query.filter(Shipment.is_negotiable == is_negotiable)
+        if shipment_type is not None:
+            query = query.filter(Shipment.shipment_type == shipment_type)
+        if pickup_from is not None:
             query = query.filter(Shipment.pickup_date >= pickup_from)
-        elif pickup_to:
+        if pickup_to is not None:
             query = query.filter(Shipment.pickup_date <= pickup_to)
 
-        # Package-related filters
-        if any([package_type, currency_id, is_negotiable is not None]):
-            query = query.join(Shipment.packages)
+        # Pagination
+        offset = (page - 1) * limit
+        shipment_objs = query.order_by(Shipment.created_at.desc()).offset(offset).limit(limit).all()
 
-            if package_type:
-                try:
-                    query = query.filter(
-                        Package.package_type == PackageType(package_type)
-                    )
-                except ValueError:
-                    raise HTTPException(status_code=400, detail="Invalid package type")
+        results = []
+        for shipment in shipment_objs:
+            # Get latest status from StatusTracker (if multiple)
+            latest_status = (
+                db.query(StatusTracker)
+                .filter(StatusTracker.shipment_id == shipment.id)
+                .order_by(StatusTracker.created_at.desc())
+                .first()
+            )
 
-            if currency_id is not None:
-                query = query.filter(Package.currency_id == currency_id)
+            shipment_data = {
+                "id": shipment.id,
+                "tracking_number": shipment.tracking_number,
+                "sender_id": shipment.sender_id,
+                "sender_name": shipment.sender_name,
+                "sender_phone": shipment.sender_phone,
+                "sender_email": shipment.sender_email,
+                "recipient_name": shipment.recipient_name,
+                "recipient_phone": shipment.recipient_phone,
+                "recipient_email": shipment.recipient_email,
+                # Show supplier name instead of courier_id
+                "supplier_name": None,
+                "pickup_address_id": shipment.pickup_address_id,
+                "status_type": latest_status.status if latest_status else "PENDING",
+                "pickup_date": shipment.pickup_date,
+                "delivery_date": shipment.delivery_date,
+                "estimated_delivery": shipment.estimated_delivery,
+                "special_instructions": shipment.special_instructions,
+                "insurance_required": shipment.insurance_required,
+                "signature_required": shipment.signature_required,
+                "package_id": shipment.package_id,
+                "is_deleted": shipment.is_deleted,
+                "created_at": shipment.created_at,
+                "updated_at": shipment.updated_at,
+            }
+            # Lookup supplier name if assigned
+            if shipment.courier_id:
+                supplier = db.query(User).filter(User.id == shipment.courier_id).first()
+                if supplier:
+                    shipment_data["supplier_name"] = f"{supplier.first_name} {supplier.last_name}"
+            results.append(shipment_data)
 
-            if is_negotiable is not None:
-                query = query.filter(Package.is_negotiable == is_negotiable)
-
-        if user_id:
-            query = query.filter(Shipment.sender_id == user_id)
-
-        # Fetch results with pagination
-        total = query.distinct().count()
-        shipments = query.distinct().offset((page - 1) * limit).limit(limit).all()
+        total = query.count()
 
         return {
             "page": page,
             "limit": limit,
             "total": total,
-            "results": [FetchShipment.model_validate(s) for s in shipments],
+            "results": results,
         }
+
+
+        # # # Start base query
+        # # query = db.query(Shipment).filter(Shipment.is_deleted == False)
+
+        # if user_obj.user_type == "super_admin" or user_obj.user_type == "supplier":
+        #     query = db.query(Shipment).filter(Shipment.is_deleted == False)
+        # else:
+        #     query = db.query(Shipment).filter(
+        #         Shipment.sender_id == user_obj.id, Shipment.is_deleted == False
+        #     )
+        # # Optional filter: shipment type
+        # if shipment_type:
+        #     try:
+        #         query = query.filter(
+        #             Shipment.shipment_type == ShipmentType(shipment_type)
+        #         )
+        #     except ValueError:
+        #         raise HTTPException(status_code=400, detail="Invalid shipment type")
+
+        # # Pickup date range filters
+        # if pickup_from and pickup_to:
+        #     query = query.filter(Shipment.pickup_date.between(pickup_from, pickup_to))
+        # elif pickup_from:
+        #     query = query.filter(Shipment.pickup_date >= pickup_from)
+        # elif pickup_to:
+        #     query = query.filter(Shipment.pickup_date <= pickup_to)
+
+        # # Package-related filters
+        # if any([package_type, currency_id, is_negotiable is not None]):
+        #     query = query.join(Shipment.packages)
+
+        #     if package_type:
+        #         try:
+        #             query = query.filter(
+        #                 Package.package_type == PackageType(package_type)
+        #             )
+        #         except ValueError:
+        #             raise HTTPException(status_code=400, detail="Invalid package type")
+
+        #     if currency_id is not None:
+        #         query = query.filter(Package.currency_id == currency_id)
+
+        #     if is_negotiable is not None:
+        #         query = query.filter(Package.is_negotiable == is_negotiable)
+
+        # if user_id:
+        #     query = query.filter(Shipment.sender_id == user_id)
+        
+        # # Fetch results with pagination
+        # total = query.distinct().count()
+        # shipments = query.distinct().offset((page - 1) * limit).limit(limit).all()
+
+        # return {
+        #     "page": page,
+        #     "limit": limit,
+        #     "total": total,
+        #     "results": [FetchShipment.model_validate(s) for s in shipments],
+        # }
 
     @staticmethod
     async def get_shipment_by_id(request, shipment_id: int, db: Session):
@@ -417,7 +480,83 @@ class ShipmentService:
         if not shipment:
             raise HTTPException(status_code=404, detail="Shipment not found")
 
-        return FetchShipment.model_validate(shipment)
+        user_id = request.state.user.get("sub", None)
+        user_obj = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        if not user_obj:
+            raise HTTPException(status_code=403, detail="User not found.")
+
+        # Only the creator (importer/exporter), assigned supplier, or super admin can view
+        if not (
+            user_obj.user_type == "super_admin" or
+            (user_obj.user_type == "importer_exporter" and shipment.sender_id == user_obj.id) or
+            (user_obj.user_type == "supplier" and shipment.courier_id == user_obj.id)
+        ):
+            raise HTTPException(status_code=403, detail="You do not have permission to view this shipment.")
+
+        # Fetch all status tracker entries for this shipment
+        status_history = (
+            db.query(StatusTracker)
+            .filter(StatusTracker.shipment_id == shipment_id)
+            .order_by(StatusTracker.created_at.asc())
+            .all()
+        )
+        # Convert to dicts or use FetchStatus schema if needed
+        status_history_data = [
+            {
+                "status": s.status.value if hasattr(s.status, 'value') else str(s.status),
+                "created_at": s.created_at
+            }
+            for s in status_history
+        ]
+        # Set latest status as status_type
+        status_type = status_history[-1].status.value if status_history else None
+
+        # Fetch related details
+        # Package details
+        package = db.query(Package).filter(Package.id == shipment.package_id).first()
+        if package:
+            package_label = f"{package.package_type.value.replace('_', ' ').title()} ({package.weight}kg, {package.length}x{package.width}x{package.height}cm)"
+            package_details = {
+                "label": package_label,
+                "type": package.package_type.value,
+                "weight": float(package.weight),
+                "length": float(package.length),
+                "width": float(package.width),
+                "height": float(package.height),
+                "is_negotiable": package.is_negotiable,
+                "estimated_cost": float(package.estimated_cost) if package.estimated_cost else None,
+                "final_cost": float(package.final_cost) if package.final_cost else None,
+                "currency": package.currency.currency if package.currency else None
+            }
+        else:
+            package_details = None
+
+        # Supplier (sender) details
+        sender = db.query(User).filter(User.id == shipment.sender_id).first()
+        sender_name = f"{sender.first_name} {sender.last_name}" if sender else shipment.sender_name
+
+        # Courier details
+        courier = db.query(User).filter(User.id == shipment.courier_id).first() if shipment.courier_id else None
+        courier_name = f"{courier.first_name} {courier.last_name}" if courier else None
+
+        # Pickup address label
+        pickup_address = db.query(Address).filter(Address.id == shipment.pickup_address_id).first()
+        pickup_address_label = pickup_address.label if pickup_address and pickup_address.label else None
+
+        # Build response
+        shipment_data = FetchShipment.model_validate(shipment).dict()
+        shipment_data["package"] = package_details
+        shipment_data["package_label"] = package_details["label"] if package_details else None
+        shipment_data["sender_name"] = sender_name
+        shipment_data["courier_name"] = courier_name
+        shipment_data["pickup_address_label"] = pickup_address_label
+        # Remove package_id from response
+        if "package_id" in shipment_data:
+            del shipment_data["package_id"]
+        # Add status info
+        shipment_data["status_history"] = status_history_data
+        shipment_data["status_type"] = status_type
+        return shipment_data
 
     @staticmethod
     async def update_shipment(
@@ -452,8 +591,8 @@ class ShipmentService:
                 db.query(Package)
                 .filter(
                     Package.id == shipment_data.package_id,
-                    Package.sender_id == shipment.sender_id,
-                    Package.is_deleted == False,
+                    Package.user_id == shipment.sender_id,
+                    Package.is_deleted.is_(False),
                 )
                 .first()
             )
@@ -499,8 +638,6 @@ class ShipmentService:
         # 4. Validate users
         for role, uid in [
             ("sender", shipment_data.sender_id),
-            ("recipient", shipment_data.recipient_id),
-            ("courier", shipment_data.courier_id),
         ]:
             user = (
                 db.query(User)
@@ -560,6 +697,97 @@ class ShipmentService:
 
         # 9. Return validated response
         return FetchShipment.model_validate(shipment)
+
+    @staticmethod
+    async def cancel_shipment(request, shipment_id: int, db: Session):
+        """
+        Only importer_exporter can cancel a shipment, and only if status is 'pending' or 'in_transit'.
+        """
+        user_id = request.state.user.get("sub", None)
+        user_obj = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        if not user_obj or user_obj.user_type != "importer_exporter":
+            raise HTTPException(status_code=403, detail="Only importer/exporter can cancel shipments.")
+
+        shipment = db.query(Shipment).filter(Shipment.id == shipment_id, Shipment.is_deleted == False).first()
+        if not shipment:
+            raise HTTPException(status_code=404, detail="Shipment not found")
+
+        # Find the latest status tracker for this shipment
+        status_tracker = (
+            db.query(StatusTracker)
+            .filter(StatusTracker.shipment_id == shipment_id)
+            .order_by(StatusTracker.created_at.desc())
+            .first()
+        )
+        if not status_tracker:
+            raise HTTPException(status_code=404, detail="Status tracker not found for shipment")
+
+        if status_tracker.status.value.lower() not in ["pending", "in_transit", "accepted"]:
+            raise HTTPException(status_code=400, detail="Can only cancel shipments that are pending, in transit, or accepted (not delivered).")
+
+        status_tracker.status = "CANCELLED"
+        db.commit()
+        db.refresh(shipment)
+        return {"detail": "Shipment cancelled", "status": status_tracker.status}
+
+    @staticmethod
+    async def accept_reject_shipment(request, shipment_id: int, action: str, db: Session):
+        """
+        Accepts or rejects a shipment by updating its status.
+        - Only supplier/courier can accept/reject (if status is 'pending' or 'in_transit').
+        - Only allow reject if payment is NOT completed.
+        - Only importer_exporter can cancel (handled in cancel_shipment).
+        Args:
+            request: FastAPI request object (for user info)
+            shipment_id: ID of the shipment to update
+            action: 'accept' or 'reject'
+            db: SQLAlchemy session
+        Returns:
+            Updated shipment object
+        """
+        user_id = request.state.user.get("sub", None)
+        user_obj = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        if not user_obj:
+            raise HTTPException(status_code=403, detail="User not found.")
+
+        shipment = db.query(Shipment).filter(Shipment.id == shipment_id, Shipment.is_deleted == False).first()
+        if not shipment:
+            raise HTTPException(status_code=404, detail="Shipment not found")
+
+        # Find the latest status tracker for this shipment
+        status_tracker = (
+            db.query(StatusTracker)
+            .filter(StatusTracker.shipment_id == shipment_id)
+            .order_by(StatusTracker.created_at.desc())
+            .first()
+        )
+        if not status_tracker:
+            raise HTTPException(status_code=404, detail="Status tracker not found for shipment")
+
+        # Only supplier can accept/reject
+        if user_obj.user_type != "supplier":
+            raise HTTPException(status_code=403, detail="Only suppliers can accept or reject shipments.")
+
+        # Only allow if status is pending or in_transit
+        if status_tracker.status.value.lower() not in ["pending", "in_transit"]:
+            raise HTTPException(status_code=400, detail="Can only accept or reject shipments that are pending or in transit.")
+
+        # Get payment for this shipment
+        payment = db.query(Payment).filter(Payment.shipment_id == shipment_id, Payment.is_deleted == False).first()
+        payment_completed = payment and payment.payment_status == PaymentStatus.COMPLETED.value
+
+        if action.lower() == "accept":
+            status_tracker.status = "ACCEPTED"
+        elif action.lower() == "reject":
+            if payment_completed:
+                raise HTTPException(status_code=400, detail="Cannot reject shipment after payment is completed.")
+            status_tracker.status = "REJECTED"
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action. Must be 'accept' or 'reject'.")
+
+        db.commit()
+        db.refresh(shipment)
+        return shipment
 
 
 # ========================= PACKAGE SERVICE =========================

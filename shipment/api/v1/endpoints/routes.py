@@ -29,6 +29,7 @@ from shipment.api.v1.schemas.shipment import (
     FetchPayment,
     UpdatePayment,
 )
+from shipment.api.v1.models.shipment import ShipmentType
 
 
 shipment_router = APIRouter()
@@ -89,11 +90,28 @@ async def replace_currency(
 
 # ================================ SHIPMENT =====================================
 
+@shipment_router.get("/shipment_types/")
+async def get_shipment_types():
+    return {"shipment_types": [st.value for st in ShipmentType]}
 
 @shipment_router.post("/create_shipment/")
 @token_required
 async def create_shipment(request:Request,payload: CreateShipment, db: Session = Depends(get_db)):
     return await views.ShipmentService.create_shipment(request, payload, db)
+
+@shipment_router.post("/shipments/{shipment_id}/accept_reject/")
+@token_required
+async def accept_reject_shipment(
+    request: Request,
+    shipment_id: int,
+    payload: dict = Body(...),
+    db: Session = Depends(get_db),
+):
+    """Endpoint for suppliers to accept or reject shipments"""
+    action = payload.get("action")
+    if not action:
+        raise HTTPException(status_code=400, detail="Action is required")
+    return await views.ShipmentService.accept_reject_shipment(request, shipment_id, action, db)
 
 
 @shipment_router.get("/shipments/")
@@ -103,6 +121,7 @@ async def get_shipments(
     user_id: Optional[int] = Query(default=None),
     package_type: Optional[str] = Query(default=None),
     currency_id: Optional[int] = Query(default=None),
+    courier_id: Optional[int] = Query(default=None),
     is_negotiable: Optional[bool] = Query(default=None),
     shipment_type: Optional[str] = Query(default=None),
     pickup_from: Optional[str] = Query(default=None),
@@ -117,6 +136,7 @@ async def get_shipments(
         user_id=user_id,
         package_type=package_type,
         currency_id=currency_id,
+        courier_id=courier_id,
         is_negotiable=is_negotiable,
         shipment_type=shipment_type,
         pickup_from=pickup_from,
@@ -330,3 +350,16 @@ async def replace_payment(
     request:Request,payment_id: int, payload: ReplacePayment, db: Session = Depends(get_db)
 ):
     return await PaymentService.replace_payment(request, payment_id, payload, db)
+
+
+@shipment_router.post("/cancel_shipment/{shipment_id}")
+@token_required
+async def cancel_shipment(
+    request: Request,
+    shipment_id: int,
+    db: Session = Depends(get_db),
+):
+    return await views.ShipmentService.cancel_shipment(request, shipment_id, db)
+
+
+
