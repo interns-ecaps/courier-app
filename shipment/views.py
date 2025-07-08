@@ -364,7 +364,7 @@ class ShipmentService:
             latest_status = (
                 db.query(StatusTracker)
                 .filter(StatusTracker.shipment_id == shipment.id)
-                .order_by(StatusTracker.created_at.desc())
+                .order_by(StatusTracker.id.desc())
                 .first()
             )
 
@@ -961,6 +961,7 @@ class StatusTrackerService:
     async def create_status_tracker(
         request, request_data: CreateStatusTracker, db: Session
     ):
+        print("enter ejre")
         # Get signed-in user
         user_id = request.state.user.get("sub", None)
         user_obj = (
@@ -1004,6 +1005,7 @@ class StatusTrackerService:
             current_location=None,
             is_delivered=False,
         )
+        print(tracker, "::tracker")
 
         db.add(tracker)
         db.commit()
