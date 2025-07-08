@@ -56,11 +56,10 @@ class Shipment(Base):
     pickup_address_id = Column(Integer, ForeignKey("addresses.id"), nullable=False)
 
     # Recipient info
-    recipient_id = Column(Integer, ForeignKey("users.id"))
     recipient_name = Column(String(100), nullable=False)
     recipient_phone = Column(String(20), nullable=False)
     recipient_email = Column(String(255))
-    delivery_address_id = Column(Integer, ForeignKey("addresses.id"), nullable=False)
+    delivery_address_text = Column(Text, nullable=True)
 
     # Courier assignment
     courier_id = Column(Integer, ForeignKey("users.id"))
@@ -95,10 +94,9 @@ class Shipment(Base):
     # Relationships
     courier = relationship("User", back_populates="courier_shipments", foreign_keys=[courier_id])
     sender = relationship("User", foreign_keys=[sender_id], back_populates="sent_shipments")
-    recipient = relationship("User", foreign_keys=[recipient_id], back_populates="received_shipments")
 
     pickup_address = relationship("Address", foreign_keys=[pickup_address_id], back_populates="pickup_shipments")
-    delivery_address = relationship("Address", foreign_keys=[delivery_address_id], back_populates="delivery_shipments")
+    # delivery_address = relationship("Address", foreign_keys=[delivery_address_id], back_populates="delivery_shipments")
 
     payment = relationship("Payment", back_populates="shipment")
 

@@ -783,41 +783,32 @@ class DashboardService:
         elif user_type == "importer_exporter":
             return {
                 "total_shipments": shipments_query().filter(
-                    (Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)
+                    Shipment.sender_id == user_id
                 ).count(),
-                "shipments_imported": shipments_query().filter(Shipment.recipient_id == user_id).count(),
+                "shipments_imported": 0,
                 "shipments_exported": shipments_query().filter(Shipment.sender_id == user_id).count(),
                 "shipments_today": shipments_query().filter(
-                    ((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)),
+                    Shipment.sender_id == user_id,
                     Shipment.created_at >= today
                 ).count(),
                 "shipments_this_month": shipments_query().filter(
-                    ((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)),
+                    Shipment.sender_id == user_id,
                     Shipment.created_at >= month_start
                 ).count(),
                 "active_shipments": db.query(Shipment).join(StatusTracker).filter(
                     Shipment.is_deleted == False,
-                    ((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)),
+                    Shipment.sender_id == user_id,
                     StatusTracker.status.in_([ShipmentStatus.IN_TRANSIT, ShipmentStatus.PENDING])
                 ).count(),
                 "delivered_shipments": db.query(Shipment).join(StatusTracker).filter(
                     Shipment.is_deleted == False,
-                    ((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)),
+                    Shipment.sender_id == user_id,
                     StatusTracker.status == ShipmentStatus.DELIVERED
                 ).count(),
                 # Payments made by this user (as importer/exporter = recipient)
-                "total_payments_made": db.query(Payment).join(Shipment).filter(
-                    Shipment.recipient_id == user_id,
-                    Payment.payment_status == PaymentStatus.COMPLETED
-                ).count(),
-                "pending_payments": db.query(Payment).join(Shipment).filter(
-                    Shipment.recipient_id == user_id,
-                    Payment.payment_status == PaymentStatus.PENDING
-                ).count(),
-                "completed_payments": db.query(Payment).join(Shipment).filter(
-                    Shipment.recipient_id == user_id,
-                    Payment.payment_status == PaymentStatus.COMPLETED
-                ).count(),
+                "total_payments_made": 0,
+                "pending_payments": 0,
+                "completed_payments": 0,
                 "addresses_count": db.query(Address).filter(Address.user_id == user_id).count(),
                 "shipments_per_month": get_shipments_per_month(db, user_type, user_id),
                 "revenue_per_month": get_revenue_per_month(db, user_type, user_id),
@@ -844,7 +835,7 @@ def get_shipments_per_month(db, user_type, user_id):
         if user_type == "supplier":
             query = query.filter(Shipment.sender_id == user_id)
         elif user_type == "importer_exporter":
-            query = query.filter((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id))
+            query = query.filter(Shipment.sender_id == user_id)
         # super_admin sees all
         months.append(first_day.strftime("%b %Y"))
         counts.append(query.count())
@@ -866,7 +857,7 @@ def get_revenue_per_month(db, user_type, user_id):
         if user_type == "supplier":
             query = query.filter(Shipment.sender_id == user_id)
         elif user_type == "importer_exporter":
-            query = query.filter((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id))
+            query = query.filter(Shipment.sender_id == user_id)
         # super_admin sees all
         months.append(first_day.strftime("%b %Y"))
         revenue.append(float(query.scalar() or 0))
