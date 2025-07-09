@@ -87,14 +87,22 @@ class CreateShipment(BaseModel):
     pickup_address_id: Annotated[
         int, Field(gt=0, description="ID of the pickup address")
     ]
+    # pickup_address_text: Optional[str] = Field(None, description="Free-text pickup address (optional)")
 
+    recipient_name: Annotated[
+        str, Field(min_length=2, max_length=100, description="Recipient's full name")
+    ]
+
+    recipient_phone: Annotated[
+        str, Field(description="Recipient's phone number")
+    ]
+    
     recipient_email: Annotated[
         EmailStr,
         Field(description="Recipient's email address (used to fetch user record)"),
     ]
-    delivery_address_id: Annotated[
-        int, Field(gt=0, description="ID of the delivery address")
-    ]
+    
+    delivery_address_text: Optional[str] = Field(None, description="Free-text delivery address")
 
     courier_id: Annotated[
         int, Field(gt=0, description="Courier user ID assigned to the shipment")
@@ -135,7 +143,6 @@ class FetchShipment(BaseModel):
     sender_email: Optional[EmailStr]
 
     # Recipient info
-    recipient_id: Optional[int]
     recipient_name: str
     recipient_phone: str
     recipient_email: Optional[EmailStr]
@@ -143,7 +150,6 @@ class FetchShipment(BaseModel):
     # Courier and address info
     courier_id: Optional[int]
     pickup_address_id: int
-    delivery_address_id: int
 
     # Shipment details
     shipment_type: ShipmentType
@@ -163,6 +169,8 @@ class FetchShipment(BaseModel):
 
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
+
+    latest_status: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -185,9 +193,6 @@ class UpdateShipment(BaseModel):
         None, description="Sender's email (optional)"
     )
 
-    recipient_id: Optional[int] = Field(
-        None, gt=0, description="Updated recipient user ID (optional)"
-    )
     recipient_name: Optional[str] = Field(
         None,
         min_length=2,
@@ -210,9 +215,6 @@ class UpdateShipment(BaseModel):
     )
     pickup_address_id: Optional[int] = Field(
         None, gt=0, description="Pickup address ID (optional)"
-    )
-    delivery_address_id: Optional[int] = Field(
-        None, gt=0, description="Delivery address ID (optional)"
     )
 
     shipment_type: Optional[ShipmentType] = Field(
@@ -263,7 +265,6 @@ class ReplaceShipment(BaseModel):
 
     pickup_address_id: Annotated[int, Field(gt=0, description="Pickup address ID")]
 
-    recipient_id: Annotated[int, Field(gt=0, description="Recipient user ID")]
     recipient_name: Annotated[
         str, Field(min_length=2, max_length=100, description="Recipient's full name")
     ]
@@ -277,7 +278,6 @@ class ReplaceShipment(BaseModel):
     ]
     recipient_email: Annotated[EmailStr, Field(description="Recipient's email address")]
 
-    delivery_address_id: Annotated[int, Field(gt=0, description="Delivery address ID")]
     courier_id: Annotated[int, Field(gt=0, description="Assigned courier user ID")]
     package_id: Annotated[int, Field(gt=0, description="Linked package ID")]
 
