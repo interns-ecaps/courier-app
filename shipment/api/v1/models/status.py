@@ -25,13 +25,12 @@ from sqlalchemy.ext.declarative import declarative_base
 
 class ShipmentStatus(Enum):
     PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
     IN_TRANSIT = "IN_TRANSIT"
     DELIVERED = "DELIVERED"
     CANCELLED = "CANCELLED"
     RETURNED = "RETURNED"
-    ACCEPTED = "ACCEPTED"
     REJECTED = "REJECTED"
-    # Add more statuses here if needed
 
 class StatusTracker(Base):
     __tablename__ = "status_tracker"

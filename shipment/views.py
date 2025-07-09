@@ -4,7 +4,8 @@ from sqlalchemy import desc, or_
 from shipment.api.v1.models.package import Currency, Package, PackageType
 from shipment.api.v1.models.status import ShipmentStatus, StatusTracker
 from shipment.api.v1.models.shipment import Shipment
-
+from razorpay import Client
+import json
 # from shipment.api.v1.endpoints.routes import
 from shipment.api.v1.models.status import ShipmentStatus
 from shipment.api.v1.models.shipment import Shipment, ShipmentType
@@ -416,64 +417,6 @@ class ShipmentService:
             "total": total,
             "results": results,
         }
-
-        # # # Start base query
-        # # query = db.query(Shipment).filter(Shipment.is_deleted == False)
-
-        # if user_obj.user_type == "super_admin" or user_obj.user_type == "supplier":
-        #     query = db.query(Shipment).filter(Shipment.is_deleted == False)
-        # else:
-        #     query = db.query(Shipment).filter(
-        #         Shipment.sender_id == user_obj.id, Shipment.is_deleted == False
-        #     )
-        # # Optional filter: shipment type
-        # if shipment_type:
-        #     try:
-        #         query = query.filter(
-        #             Shipment.shipment_type == ShipmentType(shipment_type)
-        #         )
-        #     except ValueError:
-        #         raise HTTPException(status_code=400, detail="Invalid shipment type")
-
-        # # Pickup date range filters
-        # if pickup_from and pickup_to:
-        #     query = query.filter(Shipment.pickup_date.between(pickup_from, pickup_to))
-        # elif pickup_from:
-        #     query = query.filter(Shipment.pickup_date >= pickup_from)
-        # elif pickup_to:
-        #     query = query.filter(Shipment.pickup_date <= pickup_to)
-
-        # # Package-related filters
-        # if any([package_type, currency_id, is_negotiable is not None]):
-        #     query = query.join(Shipment.packages)
-
-        #     if package_type:
-        #         try:
-        #             query = query.filter(
-        #                 Package.package_type == PackageType(package_type)
-        #             )
-        #         except ValueError:
-        #             raise HTTPException(status_code=400, detail="Invalid package type")
-
-        #     if currency_id is not None:
-        #         query = query.filter(Package.currency_id == currency_id)
-
-        #     if is_negotiable is not None:
-        #         query = query.filter(Package.is_negotiable == is_negotiable)
-
-        # if user_id:
-        #     query = query.filter(Shipment.sender_id == user_id)
-
-        # # Fetch results with pagination
-        # total = query.distinct().count()
-        # shipments = query.distinct().offset((page - 1) * limit).limit(limit).all()
-
-        # return {
-        #     "page": page,
-        #     "limit": limit,
-        #     "total": total,
-        #     "results": [FetchShipment.model_validate(s) for s in shipments],
-        # }
 
     @staticmethod
     async def get_shipment_by_id(request, shipment_id: int, db: Session):
@@ -1335,6 +1278,9 @@ class PaymentService:
         if not shipment:
             raise HTTPException(status_code=404, detail="Shipment not found")
 
+        # Store Razorpay order ID if provided
+        razorpay_order_id = getattr(payment_data, 'razorpay_order_id', None)
+
         existing_payment = (
             db.query(Payment)
             .filter(
@@ -1371,6 +1317,7 @@ class PaymentService:
             payment_method=payment_data.payment_method,
             payment_status=payment_data.payment_status,
             payment_date=payment_data.payment_date,
+            razorpay_order_id=razorpay_order_id
         )
 
         db.add(payment)
@@ -1542,3 +1489,24 @@ class PaymentService:
         db.commit()
         db.refresh(payment)
         return payment
+
+
+def create_missing_status_trackers(db: Session):
+    """Utility: Create StatusTracker for all shipments that do not have one."""
+    from shipment.api.v1.models.shipment import Shipment
+    from shipment.api.v1.models.status import StatusTracker, ShipmentStatus
+    shipments = db.query(Shipment).filter(Shipment.is_deleted == False).all()
+    for shipment in shipments:
+        existing = db.query(StatusTracker).filter(StatusTracker.shipment_id == shipment.id).first()
+        if not existing:
+            tracker = StatusTracker(
+                shipment_id=shipment.id,
+                package_id=shipment.package_id,
+                status=ShipmentStatus.PENDING,
+                current_location=None,
+                is_delivered=False,
+            )
+            db.add(tracker)
+            print(f"[DEBUG] Created StatusTracker for shipment {shipment.id}")
+    db.commit()
+    print("[DEBUG] Finished creating missing StatusTrackers.")
