@@ -1,5 +1,5 @@
 from typing import List, Optional, Union
-from fastapi import APIRouter, Depends, Form, HTTPException, Body, Path, Query, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Body, Path, Query, Request, BackgroundTasks
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
@@ -30,6 +30,23 @@ from user.api.v1.schemas.user import (
     UpdateCountry,
     UpdateUser,
     SignUpRequest,
+    ForgetPasswordRequest,
+    ResetForgetPassword,
+)
+from common.config import settings
+from fastapi_mail import ConnectionConfig
+
+mail_conf = ConnectionConfig(
+    MAIL_USERNAME = settings.smtp_user,
+    MAIL_PASSWORD = settings.smtp_password,
+    MAIL_FROM = settings.smtp_from_email,
+    MAIL_PORT = settings.smtp_port,
+    MAIL_SERVER = settings.smtp_host,
+    MAIL_FROM_NAME = settings.smtp_from_email,
+    MAIL_STARTTLS = True,
+    MAIL_SSL_TLS = False,
+    USE_CREDENTIALS = True,
+    TEMPLATE_FOLDER = './templates',
 )
 
 user_router = APIRouter()
@@ -229,6 +246,26 @@ async def update_country(
 
 @user_router.get("/dashboard")
 @token_required
-async def get_dashboard(request: Request, db: Session = Depends(get_db)):
+async def get_dashboard(
+    request: Request,
+    db: Session = Depends(get_db),
+    start_date: str = Query(None, description="Optional start date in YYYY-MM-DD format"),
+    end_date: str = Query(None, description="Optional end date in YYYY-MM-DD format")
+):
     user_info = getattr(request.state, "user", None)
-    return await DashboardService.get_dashboard_data(request, db, user_info)
+    return await DashboardService.get_dashboard_data(request, db, user_info, start_date, end_date)
+
+@user_router.post("/forget-password")
+async def forget_password_route(
+    background_tasks: BackgroundTasks,
+    fpr: ForgetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    return await views.forget_password(background_tasks, fpr, db, mail_conf)
+
+@user_router.post("/reset-password")
+async def reset_password_route(
+    rfp: ResetForgetPassword,
+    db: Session = Depends(get_db),
+):
+    return await views.reset_password(rfp, db)

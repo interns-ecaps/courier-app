@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Optional
 
 from sqlalchemy import func, extract
@@ -43,6 +43,14 @@ from sqlalchemy.orm import Session
 
 from shipment.api.v1.models.package import Package
 
+from fastapi_mail import FastMail, MessageSchema, MessageType
+from starlette.background import BackgroundTasks
+from jose import jwt, JWTError
+from pydantic import EmailStr
+from common.config import settings
+from passlib.context import CryptContext
+from user.api.v1.schemas.user import ForgetPasswordRequest, ResetForgetPassword
+
 # user/views/address_service.py or similar
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -53,6 +61,56 @@ from user.api.v1.schemas.user import CreateAddress  # 👈 import your schema
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+FORGET_PWD_SECRET_KEY = settings.secret_key
+ALGORITHM = settings.algorithm
+FORGET_PASSWORD_LINK_EXPIRE_MINUTES = 10
+
+async def forget_password(background_tasks: BackgroundTasks, fpr: ForgetPasswordRequest, db, mail_conf):
+    from user.api.v1.models.users import User
+    user = db.query(User).filter(User.email == fpr.email).first()
+    if not user:
+        return {"message": "Email address is not registered.", "success": False}
+    # Generate token
+    data = {"sub": user.email, "exp": datetime.utcnow() + timedelta(minutes=FORGET_PASSWORD_LINK_EXPIRE_MINUTES)}
+    secret_token = jwt.encode(data, FORGET_PWD_SECRET_KEY, ALGORITHM)
+    forget_url_link = f"{settings.APP_HOST}{settings.FORGET_PASSWORD_URL}{secret_token}"
+    email_body = {"company_name": settings.smtp_from_email,
+                  "link_expiry_min": FORGET_PASSWORD_LINK_EXPIRE_MINUTES,
+                  "reset_link": forget_url_link}
+    message_schema = MessageSchema(
+        subject="Password Reset Instructions",
+        recipients=[fpr.email],
+        template_body=email_body,
+        subtype=MessageType.html
+    )
+    template_name = "mail/password_reset.html"
+    fm = FastMail(mail_conf)
+    background_tasks.add_task(fm.send_message, message_schema, template_name)
+    return {"message": "If an account with that email exists, a reset link has been sent.", "success": True}
+
+def decode_reset_password_token(token: str):
+    try:
+        payload = jwt.decode(token, FORGET_PWD_SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        return email
+    except JWTError:
+        return None
+
+async def reset_password(rfp: ResetForgetPassword, db):
+    from user.api.v1.models.users import User
+    info = decode_reset_password_token(token=rfp.secret_token)
+    if info is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link.")
+    if rfp.new_password != rfp.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match.")
+    user = db.query(User).filter(User.email == info).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    user.hashed_password = pwd_context.hash(rfp.new_password)
+    db.add(user)
+    db.commit()
+    return {"success": True, "status_code": 200, "message": "Password reset successful!"}
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -694,7 +752,7 @@ class CountryService:
 
 class DashboardService:
     @staticmethod
-    async def get_dashboard_data(request, db, user_info):
+    async def get_dashboard_data(request, db, user_info, start_date=None, end_date=None):
         if not user_info:
             raise HTTPException(status_code=401, detail="User info missing")
 
@@ -714,7 +772,6 @@ class DashboardService:
         def packages_query():
             return db.query(Package).filter(Package.is_deleted == False)
 
-        # Super Admin Dashboard
         if user_type == "super_admin":
             return {
                 "total_shipments": shipments_query().count(),
@@ -735,13 +792,11 @@ class DashboardService:
                 "total_users": db.query(User).filter(User.is_deleted == False).count(),
                 "active_users": db.query(User).filter(User.is_active == True, User.is_deleted == False).count(),
                 "recent_shipments": [s.id for s in shipments_query().order_by(Shipment.created_at.desc()).limit(5)],
-                "shipments_per_month": get_shipments_per_month(db, user_type, user_id),
-                "revenue_per_month": get_revenue_per_month(db, user_type, user_id),
+                "shipments_per_month": get_shipments_per_month(db, user_type, user_id, start_date, end_date),
+                "revenue_per_month": get_revenue_per_month(db, user_type, user_id, start_date, end_date),
                 "top_performing_suppliers": get_top_performing_suppliers(db),
-                # Add analytics as needed
             }
 
-        # Supplier Dashboard
         elif user_type == "supplier":
             return {
                 "total_shipments_created": shipments_query().filter(Shipment.sender_id == user_id).count(),
@@ -757,7 +812,6 @@ class DashboardService:
                     Shipment.sender_id == user_id,
                     StatusTracker.status == ShipmentStatus.DELIVERED
                 ).count(),
-                # Payments expected to receive (as supplier = sender)
                 "pending_payments": db.query(Payment).join(Shipment).filter(
                     Shipment.sender_id == user_id,
                     Payment.payment_status == PaymentStatus.PENDING
@@ -770,11 +824,10 @@ class DashboardService:
                     Shipment.sender_id == user_id,
                     Payment.payment_status == PaymentStatus.COMPLETED
                 ).scalar() or 0,
-                "shipments_per_month": get_shipments_per_month(db, user_type, user_id),
-                "revenue_per_month": get_revenue_per_month(db, user_type, user_id),
+                "shipments_per_month": get_shipments_per_month(db, user_type, user_id, start_date, end_date),
+                "revenue_per_month": get_revenue_per_month(db, user_type, user_id, start_date, end_date),
             }
 
-        # Importer/Exporter Dashboard
         elif user_type == "importer_exporter":
             return {
                 "total_shipments": shipments_query().filter(
@@ -800,7 +853,6 @@ class DashboardService:
                     ((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)),
                     StatusTracker.status == ShipmentStatus.DELIVERED
                 ).count(),
-                # Payments made by this user (as importer/exporter = recipient)
                 "total_payments_made": db.query(Payment).join(Shipment).filter(
                     Shipment.recipient_id == user_id,
                     Payment.payment_status == PaymentStatus.COMPLETED
@@ -814,60 +866,131 @@ class DashboardService:
                     Payment.payment_status == PaymentStatus.COMPLETED
                 ).count(),
                 "addresses_count": db.query(Address).filter(Address.user_id == user_id).count(),
-                "shipments_per_month": get_shipments_per_month(db, user_type, user_id),
-                "revenue_per_month": get_revenue_per_month(db, user_type, user_id),
-                # Add suppliers/partners count as needed
+                "shipments_per_month": get_shipments_per_month(db, user_type, user_id, start_date, end_date),
+                "revenue_per_month": get_revenue_per_month(db, user_type, user_id, start_date, end_date),
             }
-
         else:
             raise HTTPException(status_code=403, detail="Unauthorized dashboard access")
 
-def get_shipments_per_month(db, user_type, user_id):
+def get_shipments_per_month(db, user_type, user_id, start_date=None, end_date=None):
     from datetime import datetime, timedelta
 
-    today = datetime.utcnow().date()
-    months = []
-    counts = []
-    for i in range(5, -1, -1):  # Last 6 months
-        first_day = (today.replace(day=1) - timedelta(days=30*i)).replace(day=1)
-        last_day = (first_day.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
-        query = db.query(Shipment).filter(
-            Shipment.created_at >= first_day,
-            Shipment.created_at <= last_day,
-            Shipment.is_deleted == False
-        )
-        if user_type == "supplier":
-            query = query.filter(Shipment.sender_id == user_id)
-        elif user_type == "importer_exporter":
-            query = query.filter((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id))
-        # super_admin sees all
-        months.append(first_day.strftime("%b %Y"))
-        counts.append(query.count())
-    return {"labels": months, "data": counts}
+    def month_range(start, end):
+        months = []
+        current = start.replace(day=1)
+        end = end.replace(day=1)
+        while current <= end:
+            months.append(current)
+            if current.month == 12:
+                current = current.replace(year=current.year + 1, month=1, day=1)
+            else:
+                current = current.replace(month=current.month + 1, day=1)
+        return months
 
-def get_revenue_per_month(db, user_type, user_id):
+    if start_date and end_date:
+        first_day = datetime.strptime(start_date, '%Y-%m-%d').date().replace(day=1)
+        last_day = datetime.strptime(end_date, '%Y-%m-%d').date().replace(day=1)
+        months = month_range(first_day, last_day)
+        labels = [m.strftime("%b %Y") for m in months]
+        counts = []
+        for m in months:
+            if m.month == 12:
+                month_end = m.replace(year=m.year + 1, month=1, day=1) - timedelta(days=1)
+            else:
+                month_end = m.replace(month=m.month + 1, day=1) - timedelta(days=1)
+            query = db.query(Shipment).filter(
+                Shipment.created_at >= m,
+                Shipment.created_at <= month_end,
+                Shipment.is_deleted == False
+            )
+            if user_type == "supplier":
+                query = query.filter(Shipment.sender_id == user_id)
+            elif user_type == "importer_exporter":
+                query = query.filter((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id))
+            counts.append(query.count())
+        return {"labels": labels, "data": counts}
+    else:
+        # Default: last 12 months including current month
+        today = datetime.utcnow().date().replace(day=1)
+        months = []
+        for i in range(11, -1, -1):
+            if today.month - i > 0:
+                year = today.year
+                month = today.month - i
+            else:
+                year = today.year - 1
+                month = 12 + (today.month - i)
+            months.append(datetime(year, month, 1).date())
+        labels = [m.strftime("%b %Y") for m in months]
+        counts = []
+        for m in months:
+            if m.month == 12:
+                month_end = m.replace(year=m.year + 1, month=1, day=1) - timedelta(days=1)
+            else:
+                month_end = m.replace(month=m.month + 1, day=1) - timedelta(days=1)
+            query = db.query(Shipment).filter(
+                Shipment.created_at >= m,
+                Shipment.created_at <= month_end,
+                Shipment.is_deleted == False
+            )
+            if user_type == "supplier":
+                query = query.filter(Shipment.sender_id == user_id)
+            elif user_type == "importer_exporter":
+                query = query.filter((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id))
+            counts.append(query.count())
+        return {"labels": labels, "data": counts}
+
+def get_revenue_per_month(db, user_type, user_id, start_date=None, end_date=None):
     from datetime import datetime, timedelta
-    months = []
+
+    def month_range(start, end):
+        months = []
+        current = start.replace(day=1)
+        end = end.replace(day=1)
+        while current <= end:
+            months.append(current)
+            if current.month == 12:
+                current = current.replace(year=current.year + 1, month=1, day=1)
+            else:
+                current = current.replace(month=current.month + 1, day=1)
+        return months
+
+    if start_date and end_date:
+        first_day = datetime.strptime(start_date, '%Y-%m-%d').date().replace(day=1)
+        last_day = datetime.strptime(end_date, '%Y-%m-%d').date().replace(day=1)
+        months = month_range(first_day, last_day)
+    else:
+        today = datetime.utcnow().date().replace(day=1)
+        months = []
+        for i in range(11, -1, -1):
+            if today.month - i > 0:
+                year = today.year
+                month = today.month - i
+            else:
+                year = today.year - 1
+                month = 12 + (today.month - i)
+            months.append(datetime(year, month, 1).date())
+
+    labels = [m.strftime("%b %Y") for m in months]
     revenue = []
-    today = datetime.utcnow().date()
-    for i in range(5, -1, -1):  # Last 6 months
-        first_day = (today.replace(day=1) - timedelta(days=30*i)).replace(day=1)
-        last_day = (first_day.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+    for m in months:
+        if m.month == 12:
+            month_end = m.replace(year=m.year + 1, month=1, day=1) - timedelta(days=1)
+        else:
+            month_end = m.replace(month=m.month + 1, day=1) - timedelta(days=1)
         query = db.query(func.sum(Package.final_cost)).join(Payment).join(Shipment).filter(
-            Shipment.created_at >= first_day,
-            Shipment.created_at <= last_day,
+            Shipment.created_at >= m,
+            Shipment.created_at <= month_end,
             Payment.payment_status == PaymentStatus.COMPLETED
         )
         if user_type == "supplier":
             query = query.filter(Shipment.sender_id == user_id)
         elif user_type == "importer_exporter":
             query = query.filter((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id))
-        # super_admin sees all
-        months.append(first_day.strftime("%b %Y"))
         revenue.append(float(query.scalar() or 0))
-    return {"labels": months, "data": revenue}
+    return {"labels": labels, "data": revenue}
 
-def get_top_performing_suppliers(db, limit=5):
+def get_top_performing_suppliers(db):
     # Show top performers regardless of user type
     top_suppliers = db.query(
         User.first_name,
@@ -885,7 +1008,7 @@ def get_top_performing_suppliers(db, limit=5):
      )\
      .group_by(User.id, User.first_name, User.last_name, User.user_type)\
      .order_by(func.sum(Package.final_cost).desc())\
-     .limit(limit)\
+     .limit(5)\
      .all()
     
     return [

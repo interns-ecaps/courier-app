@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 2
+    # Razorpay
+    razorpay_key_id: str
+    razorpay_key_secret: str
+    smtp_from_email: str
+    APP_HOST: str
+    FORGET_PASSWORD_URL: str
 
     class Config:
         env_file = ".env"

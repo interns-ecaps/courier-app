@@ -3,7 +3,8 @@ from fastapi import HTTPException, status
 from shipment.api.v1.models.package import Currency, Package, PackageType
 from shipment.api.v1.models.status import ShipmentStatus, StatusTracker
 from shipment.api.v1.models.shipment import Shipment
-
+from razorpay import Client
+import json
 # from shipment.api.v1.endpoints.routes import
 from shipment.api.v1.models.status import ShipmentStatus
 from shipment.api.v1.models.shipment import Shipment, ShipmentType
@@ -336,27 +337,33 @@ class ShipmentService:
         page: int = 1,
         limit: int = 10,
     ):
-        # Get signed-in user
-        requester_id = request.state.user.get("sub", None)
-        user_obj = (
-            db.query(User)
-            .filter(User.id == requester_id, User.is_deleted == False)
-            .first()
-        )
+        # === DEBUG: Log incoming user info and filters ===
+        print("[DEBUG] get_shipments called")
+        print("[DEBUG] User info:", getattr(request.state, 'user', None))
+        print("[DEBUG] Filters:", {
+            'user_id': user_id,
+            'package_type': package_type,
+            'currency_id': currency_id,
+            'is_negotiable': is_negotiable,
+            'shipment_type': shipment_type,
+            'pickup_from': pickup_from,
+            'pickup_to': pickup_to,
+            'page': page,
+            'limit': limit
+        })
 
-        if not user_obj:
-            raise HTTPException(status_code=404, detail="User not found")
+        # === DEBUG: Temporarily disable user/status filtering ===
+        # Original logic:
+        # if user_obj.user_type == "super_admin":
+        #     query = db.query(Shipment).filter(Shipment.is_deleted == False)
+        # else:
+        #     query = db.query(Shipment).filter(
+        #         Shipment.sender_id == user_obj.id, Shipment.is_deleted == False
+        #     )
+        # For debugging, return all shipments (not deleted):
+        query = db.query(Shipment).filter(Shipment.is_deleted == False)
 
-        # # Start base query
-        # query = db.query(Shipment).filter(Shipment.is_deleted == False)
-
-        if user_obj.user_type == "super_admin":
-            query = db.query(Shipment).filter(Shipment.is_deleted == False)
-        else:
-            query = db.query(Shipment).filter(
-                Shipment.sender_id == user_obj.id, Shipment.is_deleted == False
-            )
-        # Optional filter: shipment type
+        # Keep other filters as is (package_type, currency_id, etc.)
         if shipment_type:
             try:
                 query = query.filter(
@@ -365,7 +372,6 @@ class ShipmentService:
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid shipment type")
 
-        # Pickup date range filters
         if pickup_from and pickup_to:
             query = query.filter(Shipment.pickup_date.between(pickup_from, pickup_to))
         elif pickup_from:
@@ -373,36 +379,47 @@ class ShipmentService:
         elif pickup_to:
             query = query.filter(Shipment.pickup_date <= pickup_to)
 
-        # Package-related filters
         if any([package_type, currency_id, is_negotiable is not None]):
             query = query.join(Shipment.packages)
-
             if package_type:
                 try:
-                    query = query.filter(
-                        Package.package_type == PackageType(package_type)
-                    )
+                    query = query.filter(Package.package_type == PackageType(package_type))
                 except ValueError:
                     raise HTTPException(status_code=400, detail="Invalid package type")
-
             if currency_id is not None:
                 query = query.filter(Package.currency_id == currency_id)
-
             if is_negotiable is not None:
                 query = query.filter(Package.is_negotiable == is_negotiable)
 
         if user_id:
             query = query.filter(Shipment.sender_id == user_id)
 
-        # Fetch results with pagination
         total = query.distinct().count()
         shipments = query.distinct().offset((page - 1) * limit).limit(limit).all()
+
+        # Add status_type to each shipment for frontend filtering
+        results = []
+        for s in shipments:
+            # Get the latest status from StatusTracker (assume first if only one, or sort by updated_at if multiple)
+            status_type = None
+            if hasattr(s, 'status') and s.status:
+                # If multiple statuses, get the latest by updated_at
+                if isinstance(s.status, list):
+                    latest_status = max(s.status, key=lambda st: getattr(st, 'updated_at', st.created_at))
+                    status_type = latest_status.status.value if hasattr(latest_status.status, 'value') else str(latest_status.status)
+                else:
+                    status_type = s.status.status.value if hasattr(s.status.status, 'value') else str(s.status.status)
+            else:
+                status_type = "pending"
+            shipment_dict = FetchShipment.model_validate(s).dict()
+            shipment_dict["status_type"] = status_type
+            results.append(shipment_dict)
 
         return {
             "page": page,
             "limit": limit,
             "total": total,
-            "results": [FetchShipment.model_validate(s) for s in shipments],
+            "results": results,
         }
 
     @staticmethod
@@ -987,28 +1004,9 @@ class PaymentService:
         
         if not shipment:
             raise HTTPException(status_code=404, detail="Shipment not found")
-        
-        existing_payment = db.query(Payment).filter(
-            Payment.shipment_id == payment_data.shipment_id,
-            Payment.payment_status == PaymentStatus.PENDING.value,
-            Payment.is_deleted == False
-        ).first()
 
-        if existing_payment:
-            raise HTTPException(
-                status_code=400, detail="Payment already pending for this shipment"
-            )
-        
-        existing_payment = db.query(Payment).filter(
-            Payment.shipment_id == payment_data.shipment_id,
-            Payment.payment_status == PaymentStatus.COMPLETED.value,
-            Payment.is_deleted == False
-        ).first()
-
-        if existing_payment:
-            raise HTTPException(
-                status_code=400, detail="Payment already completed for this shipment"
-            )
+        # Store Razorpay order ID if provided
+        razorpay_order_id = getattr(payment_data, 'razorpay_order_id', None)
 
         payment = Payment(
             shipment_id=payment_data.shipment_id,
@@ -1016,9 +1014,8 @@ class PaymentService:
             payment_method=payment_data.payment_method,
             payment_status=payment_data.payment_status,
             payment_date=payment_data.payment_date,
+            razorpay_order_id=razorpay_order_id
         )
-
-
 
         db.add(payment)
         db.commit()
@@ -1189,3 +1186,24 @@ class PaymentService:
         db.commit()
         db.refresh(payment)
         return payment
+
+
+def create_missing_status_trackers(db: Session):
+    """Utility: Create StatusTracker for all shipments that do not have one."""
+    from shipment.api.v1.models.shipment import Shipment
+    from shipment.api.v1.models.status import StatusTracker, ShipmentStatus
+    shipments = db.query(Shipment).filter(Shipment.is_deleted == False).all()
+    for shipment in shipments:
+        existing = db.query(StatusTracker).filter(StatusTracker.shipment_id == shipment.id).first()
+        if not existing:
+            tracker = StatusTracker(
+                shipment_id=shipment.id,
+                package_id=shipment.package_id,
+                status=ShipmentStatus.PENDING,
+                current_location=None,
+                is_delivered=False,
+            )
+            db.add(tracker)
+            print(f"[DEBUG] Created StatusTracker for shipment {shipment.id}")
+    db.commit()
+    print("[DEBUG] Finished creating missing StatusTrackers.")
