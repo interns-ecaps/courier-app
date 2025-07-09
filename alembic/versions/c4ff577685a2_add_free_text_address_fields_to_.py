@@ -1,8 +1,8 @@
-"""initial commit
+"""Add free-text address fields to shipments
 
-Revision ID: 2ede0001b9a4
+Revision ID: c4ff577685a2
 Revises: 
-Create Date: 2025-06-19 12:45:59.313222
+Create Date: 2025-07-08 11:54:08.007325
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '2ede0001b9a4'
+revision: str = 'c4ff577685a2'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -23,6 +23,7 @@ def upgrade() -> None:
     op.create_table('countries',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('is_deleted', sa.Boolean(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id')
@@ -31,6 +32,7 @@ def upgrade() -> None:
     op.create_table('currency',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('currency', sa.String(length=3), nullable=False),
+    sa.Column('is_deleted', sa.Boolean(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id')
@@ -45,6 +47,7 @@ def upgrade() -> None:
     sa.Column('phone_number', sa.String(length=20), nullable=False),
     sa.Column('user_type', sa.Enum('importer_exporter', 'supplier', 'super_admin', name='usertype'), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id')
@@ -64,6 +67,7 @@ def upgrade() -> None:
     sa.Column('latitude', sa.Numeric(precision=10, scale=8), nullable=True),
     sa.Column('longitude', sa.Numeric(precision=11, scale=8), nullable=True),
     sa.Column('is_default', sa.Boolean(), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['country_code'], ['countries.id'], ),
@@ -74,36 +78,26 @@ def upgrade() -> None:
     op.create_table('packages',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('package_type', sa.Enum('STACKABLE_GOODS', 'NON_STACKABLE_GOODS', 'DANGEROUS_GOODS', 'NON_DANGEROUS_GOODS', 'DANGEROUS_STACKABLE_GOODS', 'DANGEROUS_NON_STACKABLE_GOODS', name='packagetype'), nullable=True),
+    sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('weight', sa.Numeric(precision=10, scale=2), nullable=False),
     sa.Column('length', sa.Numeric(precision=10, scale=2), nullable=False),
     sa.Column('width', sa.Numeric(precision=10, scale=2), nullable=False),
     sa.Column('height', sa.Numeric(precision=10, scale=2), nullable=False),
     sa.Column('is_negotiable', sa.Boolean(), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), nullable=True),
     sa.Column('currency_id', sa.Integer(), nullable=False),
     sa.Column('estimated_cost', sa.Numeric(precision=10, scale=2), nullable=True),
     sa.Column('final_cost', sa.Numeric(precision=10, scale=2), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['currency_id'], ['currency.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_packages_id'), 'packages', ['id'], unique=False)
-    op.create_table('status_tracker',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('package_id', sa.Integer(), nullable=False),
-    sa.Column('status', sa.Enum('PENDING', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED', 'RETURNED', name='shipmentstatus'), nullable=True),
-    sa.Column('current_location', sa.Integer(), nullable=False),
-    sa.Column('is_delivered', sa.Boolean(), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['current_location'], ['addresses.id'], ),
-    sa.ForeignKeyConstraint(['package_id'], ['packages.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_status_tracker_id'), 'status_tracker', ['id'], unique=False)
     op.create_table('shipments',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('tracking_number', sa.String(length=50), nullable=False),
+    sa.Column('tracking_number', sa.String(length=40), nullable=False),
     sa.Column('sender_id', sa.Integer(), nullable=False),
     sa.Column('sender_name', sa.String(length=100), nullable=False),
     sa.Column('sender_phone', sa.String(length=20), nullable=False),
@@ -116,7 +110,6 @@ def upgrade() -> None:
     sa.Column('delivery_address_id', sa.Integer(), nullable=False),
     sa.Column('courier_id', sa.Integer(), nullable=True),
     sa.Column('shipment_type', sa.Enum('STANDARD', 'EXPRESS', 'OVERNIGHT', 'SAME_DAY', name='shipmenttype'), nullable=True),
-    sa.Column('shipment_status_id', sa.Integer(), nullable=False),
     sa.Column('package_id', sa.Integer(), nullable=False),
     sa.Column('pickup_date', sa.DateTime(timezone=True), nullable=True),
     sa.Column('delivery_date', sa.DateTime(timezone=True), nullable=True),
@@ -124,6 +117,7 @@ def upgrade() -> None:
     sa.Column('special_instructions', sa.Text(), nullable=True),
     sa.Column('insurance_required', sa.Boolean(), nullable=True),
     sa.Column('signature_required', sa.Boolean(), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['courier_id'], ['users.id'], ),
@@ -132,7 +126,6 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['pickup_address_id'], ['addresses.id'], ),
     sa.ForeignKeyConstraint(['recipient_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['sender_id'], ['users.id'], ),
-    sa.ForeignKeyConstraint(['shipment_status_id'], ['status_tracker.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_shipments_id'), 'shipments', ['id'], unique=False)
@@ -144,6 +137,7 @@ def upgrade() -> None:
     sa.Column('payment_method', sa.Enum('CASH', 'ONLINE', 'WIRE_TRANSFER', name='paymentmethod'), nullable=True),
     sa.Column('payment_status', sa.Enum('PENDING', 'COMPLETED', 'FAILED', name='paymentstatus'), nullable=True),
     sa.Column('payment_date', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['package_id'], ['packages.id'], ),
@@ -151,18 +145,33 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_payments_id'), 'payments', ['id'], unique=False)
+    op.create_table('status_tracker',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('shipment_id', sa.Integer(), nullable=False),
+    sa.Column('package_id', sa.Integer(), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED', 'RETURNED', 'ACCEPTED', 'REJECTED', name='shipmentstatus'), nullable=True),
+    sa.Column('current_location', sa.String(length=255), nullable=True),
+    sa.Column('is_delivered', sa.Boolean(), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['package_id'], ['packages.id'], ),
+    sa.ForeignKeyConstraint(['shipment_id'], ['shipments.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_status_tracker_id'), 'status_tracker', ['id'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f('ix_status_tracker_id'), table_name='status_tracker')
+    op.drop_table('status_tracker')
     op.drop_index(op.f('ix_payments_id'), table_name='payments')
     op.drop_table('payments')
     op.drop_index(op.f('ix_shipments_tracking_number'), table_name='shipments')
     op.drop_index(op.f('ix_shipments_id'), table_name='shipments')
     op.drop_table('shipments')
-    op.drop_index(op.f('ix_status_tracker_id'), table_name='status_tracker')
-    op.drop_table('status_tracker')
     op.drop_index(op.f('ix_packages_id'), table_name='packages')
     op.drop_table('packages')
     op.drop_index(op.f('ix_addresses_id'), table_name='addresses')

@@ -68,11 +68,6 @@ class Address(Base):
         foreign_keys="Shipment.pickup_address_id",
         back_populates="pickup_address",
     )
-    delivery_shipments = relationship(
-        "Shipment",
-        foreign_keys="Shipment.delivery_address_id",
-        back_populates="delivery_address",
-    )
 
     country = relationship("Country", back_populates="addresses")
 

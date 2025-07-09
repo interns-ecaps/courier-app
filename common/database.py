@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 
 DATABASE_URL = f"postgresql://{settings.db_user}:{settings.db_pass}@{settings.db_host}:{settings.db_port}/{settings.db_name}"
-
+print(DATABASE_URL, "::::DATABASE_URL")
 engine = create_engine(DATABASE_URL)  # responsile for connection pool to your database
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -385,7 +385,7 @@ class AddressService:
             db.query(Address)
             .options(joinedload(Address.user), joinedload(Address.country))
             .filter(Address.is_deleted == False)
-            .order_by(Address.updated_at.desc())
+            .order_by(Address.is_default.desc(), Address.updated_at.desc())
         )
 
         # Logic 2: enforce visibility rules
@@ -453,8 +453,8 @@ class AddressService:
     async def update_address(
         request, address_id: int, update_data: UpdateAddress, db: Session
     ):
-
         user_id = request.state.user.get("sub", None)
+
         user_obj = (
             db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
         )
@@ -466,25 +466,34 @@ class AddressService:
             .filter(Address.user_id == user_obj.id, Address.id == address_id)
             .first()
         )
-
         if not address:
             raise HTTPException(status_code=404, detail="Address not found")
 
-        # Handle is_deleted update separately
         if address.is_deleted and (update_data.is_deleted is not True):
-            # Cannot update other fields of a soft-deleted address
             raise HTTPException(
                 status_code=403,
                 detail="Address has been deleted and cannot be updated",
             )
 
-        for field, value in update_data.dict(exclude_unset=True).items():
-            print(field, value)
+        update_fields = update_data.dict(exclude_unset=True)
+
+        # 🟡 CRUCIAL: This part must exist!
+        if update_fields.get("is_default", False) is True:
+            db.query(Address).filter(
+                Address.user_id == user_obj.id,
+                Address.id != address_id,
+                Address.is_deleted == False
+            ).update({"is_default": False})
+
+        for field, value in update_fields.items():
             setattr(address, field, value)
 
         db.commit()
         db.refresh(address)
+
         return {"message": "Address updated successfully", "address": address}
+
+
 
     @staticmethod
     async def replace_address(
@@ -783,41 +792,32 @@ class DashboardService:
         elif user_type == "importer_exporter":
             return {
                 "total_shipments": shipments_query().filter(
-                    (Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)
+                    Shipment.sender_id == user_id
                 ).count(),
-                "shipments_imported": shipments_query().filter(Shipment.recipient_id == user_id).count(),
+                "shipments_imported": 0,
                 "shipments_exported": shipments_query().filter(Shipment.sender_id == user_id).count(),
                 "shipments_today": shipments_query().filter(
-                    ((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)),
+                    Shipment.sender_id == user_id,
                     Shipment.created_at >= today
                 ).count(),
                 "shipments_this_month": shipments_query().filter(
-                    ((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)),
+                    Shipment.sender_id == user_id,
                     Shipment.created_at >= month_start
                 ).count(),
                 "active_shipments": db.query(Shipment).join(StatusTracker).filter(
                     Shipment.is_deleted == False,
-                    ((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)),
+                    Shipment.sender_id == user_id,
                     StatusTracker.status.in_([ShipmentStatus.IN_TRANSIT, ShipmentStatus.PENDING])
                 ).count(),
                 "delivered_shipments": db.query(Shipment).join(StatusTracker).filter(
                     Shipment.is_deleted == False,
-                    ((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id)),
+                    Shipment.sender_id == user_id,
                     StatusTracker.status == ShipmentStatus.DELIVERED
                 ).count(),
                 # Payments made by this user (as importer/exporter = recipient)
-                "total_payments_made": db.query(Payment).join(Shipment).filter(
-                    Shipment.recipient_id == user_id,
-                    Payment.payment_status == PaymentStatus.COMPLETED
-                ).count(),
-                "pending_payments": db.query(Payment).join(Shipment).filter(
-                    Shipment.recipient_id == user_id,
-                    Payment.payment_status == PaymentStatus.PENDING
-                ).count(),
-                "completed_payments": db.query(Payment).join(Shipment).filter(
-                    Shipment.recipient_id == user_id,
-                    Payment.payment_status == PaymentStatus.COMPLETED
-                ).count(),
+                "total_payments_made": 0,
+                "pending_payments": 0,
+                "completed_payments": 0,
                 "addresses_count": db.query(Address).filter(Address.user_id == user_id).count(),
                 "shipments_per_month": get_shipments_per_month(db, user_type, user_id),
                 "revenue_per_month": get_revenue_per_month(db, user_type, user_id),
@@ -844,7 +844,7 @@ def get_shipments_per_month(db, user_type, user_id):
         if user_type == "supplier":
             query = query.filter(Shipment.sender_id == user_id)
         elif user_type == "importer_exporter":
-            query = query.filter((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id))
+            query = query.filter(Shipment.sender_id == user_id)
         # super_admin sees all
         months.append(first_day.strftime("%b %Y"))
         counts.append(query.count())
@@ -866,7 +866,7 @@ def get_revenue_per_month(db, user_type, user_id):
         if user_type == "supplier":
             query = query.filter(Shipment.sender_id == user_id)
         elif user_type == "importer_exporter":
-            query = query.filter((Shipment.sender_id == user_id) | (Shipment.recipient_id == user_id))
+            query = query.filter(Shipment.sender_id == user_id)
         # super_admin sees all
         months.append(first_day.strftime("%b %Y"))
         revenue.append(float(query.scalar() or 0))
