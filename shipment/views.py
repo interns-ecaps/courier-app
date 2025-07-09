@@ -1,6 +1,6 @@
 from datetime import datetime
 from fastapi import HTTPException, status
-from sqlalchemy import or_
+from sqlalchemy import desc, or_
 from shipment.api.v1.models.package import Currency, Package, PackageType
 from shipment.api.v1.models.status import ShipmentStatus, StatusTracker
 from shipment.api.v1.models.shipment import Shipment
@@ -59,7 +59,6 @@ class CurrencyService:
             )
 
         currency_value = currency_data.currency.strip()
-
 
         if not currency_value:
             raise HTTPException(
@@ -217,12 +216,14 @@ class ShipmentService:
                 User.id == shipment_data.courier_id,
                 User.is_deleted == False,
                 User.is_active == True,
-                User.user_type == "supplier"
+                User.user_type == "supplier",
             )
             .first()
         )
         if not assigned_supplier:
-            raise HTTPException(status_code=400, detail="Assigned supplier not found or inactive")
+            raise HTTPException(
+                status_code=400, detail="Assigned supplier not found or inactive"
+            )
 
         # Validate package
         package = (
@@ -267,7 +268,6 @@ class ShipmentService:
             special_instructions=shipment_data.special_instructions,
             insurance_required=shipment_data.insurance_required,
             signature_required=shipment_data.signature_required,
-            
         )
 
         db.add(new_shipment)
@@ -316,12 +316,16 @@ class ShipmentService:
 
         # Apply status filter if passed
         if status_type:
-            statuses_obj = [s for s in statuses_obj if s.status.lower() == status_type.lower()]
+            statuses_obj = [
+                s for s in statuses_obj if s.status.lower() == status_type.lower()
+            ]
 
         shipment_ids = {s.shipment_id for s in statuses_obj}
 
         # Build base query with shipment_ids found from statuses
-        query = db.query(Shipment).filter(Shipment.id.in_(shipment_ids), Shipment.is_deleted == False)
+        query = db.query(Shipment).filter(
+            Shipment.id.in_(shipment_ids), Shipment.is_deleted == False
+        )
 
         # Role-based filters
         if user_obj.user_type == "super_admin":
@@ -356,7 +360,9 @@ class ShipmentService:
 
         # Pagination
         offset = (page - 1) * limit
-        shipment_objs = query.order_by(Shipment.created_at.desc()).offset(offset).limit(limit).all()
+        shipment_objs = (
+            query.order_by(Shipment.created_at.desc()).offset(offset).limit(limit).all()
+        )
 
         results = []
         for shipment in shipment_objs:
@@ -397,7 +403,9 @@ class ShipmentService:
             if shipment.courier_id:
                 supplier = db.query(User).filter(User.id == shipment.courier_id).first()
                 if supplier:
-                    shipment_data["supplier_name"] = f"{supplier.first_name} {supplier.last_name}"
+                    shipment_data["supplier_name"] = (
+                        f"{supplier.first_name} {supplier.last_name}"
+                    )
             results.append(shipment_data)
 
         total = query.count()
@@ -408,7 +416,6 @@ class ShipmentService:
             "total": total,
             "results": results,
         }
-
 
         # # # Start base query
         # # query = db.query(Shipment).filter(Shipment.is_deleted == False)
@@ -456,7 +463,7 @@ class ShipmentService:
 
         # if user_id:
         #     query = query.filter(Shipment.sender_id == user_id)
-        
+
         # # Fetch results with pagination
         # total = query.distinct().count()
         # shipments = query.distinct().offset((page - 1) * limit).limit(limit).all()
@@ -481,36 +488,60 @@ class ShipmentService:
             raise HTTPException(status_code=404, detail="Shipment not found")
 
         user_id = request.state.user.get("sub", None)
-        user_obj = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
         if not user_obj:
             raise HTTPException(status_code=403, detail="User not found.")
 
         # Only the creator (importer/exporter), assigned supplier, or super admin can view
         if not (
-            user_obj.user_type == "super_admin" or
-            (user_obj.user_type == "importer_exporter" and shipment.sender_id == user_obj.id) or
-            (user_obj.user_type == "supplier" and shipment.courier_id == user_obj.id)
+            user_obj.user_type == "super_admin"
+            or (
+                user_obj.user_type == "importer_exporter"
+                and shipment.sender_id == user_obj.id
+            )
+            or (user_obj.user_type == "supplier" and shipment.courier_id == user_obj.id)
         ):
-            raise HTTPException(status_code=403, detail="You do not have permission to view this shipment.")
+            raise HTTPException(
+                status_code=403,
+                detail="You do not have permission to view this shipment.",
+            )
 
         # Fetch all status tracker entries for this shipment
+        status_priority = {"PENDING": 1, "ACCEPTED": 2, "IN_TRANSIT": 3, "DELIVERED": 4}
         status_history = (
             db.query(StatusTracker)
             .filter(StatusTracker.shipment_id == shipment_id)
-            .order_by(StatusTracker.created_at.asc())
+            .order_by(StatusTracker.created_at.desc())
             .all()
         )
         # Convert to dicts or use FetchStatus schema if needed
         status_history_data = [
             {
-                "status": s.status.value if hasattr(s.status, 'value') else str(s.status),
-                "created_at": s.created_at
+                "status": (
+                    s.status.value if hasattr(s.status, "value") else str(s.status)
+                ),
+                "created_at": s.created_at,
+                "priority": status_priority.get(
+                    s.status.value if hasattr(s.status, "value") else str(s.status), 0
+                ),
             }
             for s in status_history
         ]
+        status_history_data = sorted(status_history_data, key=lambda x: x["priority"])
         # Set latest status as status_type
-        status_type = status_history[-1].status.value if status_history else None
-
+        latest_status_obj = (
+            max(
+                status_history,
+                key=lambda s: status_priority.get(
+                    s.status.value if hasattr(s.status, "value") else str(s.status), 0
+                ),
+            )
+            if status_history
+            else None
+        )
+        status_type = latest_status_obj.status.value if latest_status_obj else None
         # Fetch related details
         # Package details
         package = db.query(Package).filter(Package.id == shipment.package_id).first()
@@ -524,29 +555,45 @@ class ShipmentService:
                 "width": float(package.width),
                 "height": float(package.height),
                 "is_negotiable": package.is_negotiable,
-                "estimated_cost": float(package.estimated_cost) if package.estimated_cost else None,
+                "estimated_cost": (
+                    float(package.estimated_cost) if package.estimated_cost else None
+                ),
                 "final_cost": float(package.final_cost) if package.final_cost else None,
-                "currency": package.currency.currency if package.currency else None
+                "currency": package.currency.currency if package.currency else None,
             }
         else:
             package_details = None
 
         # Supplier (sender) details
         sender = db.query(User).filter(User.id == shipment.sender_id).first()
-        sender_name = f"{sender.first_name} {sender.last_name}" if sender else shipment.sender_name
+        sender_name = (
+            f"{sender.first_name} {sender.last_name}"
+            if sender
+            else shipment.sender_name
+        )
 
         # Courier details
-        courier = db.query(User).filter(User.id == shipment.courier_id).first() if shipment.courier_id else None
+        courier = (
+            db.query(User).filter(User.id == shipment.courier_id).first()
+            if shipment.courier_id
+            else None
+        )
         courier_name = f"{courier.first_name} {courier.last_name}" if courier else None
 
         # Pickup address label
-        pickup_address = db.query(Address).filter(Address.id == shipment.pickup_address_id).first()
-        pickup_address_label = pickup_address.label if pickup_address and pickup_address.label else None
+        pickup_address = (
+            db.query(Address).filter(Address.id == shipment.pickup_address_id).first()
+        )
+        pickup_address_label = (
+            pickup_address.label if pickup_address and pickup_address.label else None
+        )
 
         # Build response
         shipment_data = FetchShipment.model_validate(shipment).dict()
         shipment_data["package"] = package_details
-        shipment_data["package_label"] = package_details["label"] if package_details else None
+        shipment_data["package_label"] = (
+            package_details["label"] if package_details else None
+        )
         shipment_data["sender_name"] = sender_name
         shipment_data["courier_name"] = courier_name
         shipment_data["pickup_address_label"] = pickup_address_label
@@ -704,11 +751,19 @@ class ShipmentService:
         Only importer_exporter can cancel a shipment, and only if status is 'pending' or 'in_transit'.
         """
         user_id = request.state.user.get("sub", None)
-        user_obj = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
         if not user_obj or user_obj.user_type != "importer_exporter":
-            raise HTTPException(status_code=403, detail="Only importer/exporter can cancel shipments.")
+            raise HTTPException(
+                status_code=403, detail="Only importer/exporter can cancel shipments."
+            )
 
-        shipment = db.query(Shipment).filter(Shipment.id == shipment_id, Shipment.is_deleted == False).first()
+        shipment = (
+            db.query(Shipment)
+            .filter(Shipment.id == shipment_id, Shipment.is_deleted == False)
+            .first()
+        )
         if not shipment:
             raise HTTPException(status_code=404, detail="Shipment not found")
 
@@ -720,10 +775,19 @@ class ShipmentService:
             .first()
         )
         if not status_tracker:
-            raise HTTPException(status_code=404, detail="Status tracker not found for shipment")
+            raise HTTPException(
+                status_code=404, detail="Status tracker not found for shipment"
+            )
 
-        if status_tracker.status.value.lower() not in ["pending", "in_transit", "accepted"]:
-            raise HTTPException(status_code=400, detail="Can only cancel shipments that are pending, in transit, or accepted (not delivered).")
+        if status_tracker.status.value.lower() not in [
+            "pending",
+            "in_transit",
+            "accepted",
+        ]:
+            raise HTTPException(
+                status_code=400,
+                detail="Can only cancel shipments that are pending, in transit, or accepted (not delivered).",
+            )
 
         status_tracker.status = "CANCELLED"
         db.commit()
@@ -731,7 +795,9 @@ class ShipmentService:
         return {"detail": "Shipment cancelled", "status": status_tracker.status}
 
     @staticmethod
-    async def accept_reject_shipment(request, shipment_id: int, action: str, db: Session):
+    async def accept_reject_shipment(
+        request, shipment_id: int, action: str, db: Session
+    ):
         """
         Accepts or rejects a shipment by updating its status.
         - Only supplier/courier can accept/reject (if status is 'pending' or 'in_transit').
@@ -746,11 +812,17 @@ class ShipmentService:
             Updated shipment object
         """
         user_id = request.state.user.get("sub", None)
-        user_obj = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        user_obj = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
         if not user_obj:
             raise HTTPException(status_code=403, detail="User not found.")
 
-        shipment = db.query(Shipment).filter(Shipment.id == shipment_id, Shipment.is_deleted == False).first()
+        shipment = (
+            db.query(Shipment)
+            .filter(Shipment.id == shipment_id, Shipment.is_deleted == False)
+            .first()
+        )
         if not shipment:
             raise HTTPException(status_code=404, detail="Shipment not found")
 
@@ -762,29 +834,68 @@ class ShipmentService:
             .first()
         )
         if not status_tracker:
-            raise HTTPException(status_code=404, detail="Status tracker not found for shipment")
+            raise HTTPException(
+                status_code=404, detail="Status tracker not found for shipment"
+            )
 
         # Only supplier can accept/reject
         if user_obj.user_type != "supplier":
-            raise HTTPException(status_code=403, detail="Only suppliers can accept or reject shipments.")
+            raise HTTPException(
+                status_code=403, detail="Only suppliers can accept or reject shipments."
+            )
 
         # Only allow if status is pending or in_transit
-        if status_tracker.status.value.lower() not in ["pending", "in_transit"]:
-            raise HTTPException(status_code=400, detail="Can only accept or reject shipments that are pending or in transit.")
+        # if status_tracker.status.value.lower() not in ["pending", "in_transit"]:
+        #     raise HTTPException(
+        #         status_code=400,
+        #         detail="Can only accept or reject shipments that are pending or in transit.",
+        #     )
 
         # Get payment for this shipment
-        payment = db.query(Payment).filter(Payment.shipment_id == shipment_id, Payment.is_deleted == False).first()
-        payment_completed = payment and payment.payment_status == PaymentStatus.COMPLETED.value
+        payment = (
+            db.query(Payment)
+            .filter(Payment.shipment_id == shipment_id, Payment.is_deleted == False)
+            .first()
+        )
+        payment_completed = (
+            payment and payment.payment_status == PaymentStatus.COMPLETED.value
+        )
 
-        if action.lower() == "accept":
-            status_tracker.status = "ACCEPTED"
-        elif action.lower() == "reject":
+        if action.lower() == "accept" or action.lower() == "accepted":
+            new_status = "ACCEPTED"
+        elif action.lower() == "reject" or action.lower() == "rejected":
             if payment_completed:
-                raise HTTPException(status_code=400, detail="Cannot reject shipment after payment is completed.")
-            status_tracker.status = "REJECTED"
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot reject shipment after payment is completed.",
+                )
+            new_status = "REJECTED"
+        elif action.lower() == "in_transit":
+            if payment_completed:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot reject shipment after payment is completed.",
+                )
+            new_status = "IN_TRANSIT"
+        elif action.lower() == "delivered":
+            if payment_completed:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cannot reject shipment after payment is completed.",
+                )
+            new_status = "DELIVERED"
         else:
-            raise HTTPException(status_code=400, detail="Invalid action. Must be 'accept' or 'reject'.")
-
+            raise HTTPException(
+                status_code=400, detail="Invalid action. Must be 'accept' or 'reject'."
+            )
+        new_status_tracker = StatusTracker(
+            shipment_id=shipment.id,
+            status=new_status,
+            package_id=status_tracker.package_id,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        db.add(new_status_tracker)
         db.commit()
         db.refresh(shipment)
         return shipment
@@ -987,15 +1098,17 @@ class StatusTrackerService:
             )
 
         # Check if a status tracker already exists for this shipment
-        existing_status = db.query(StatusTracker).filter(
-            StatusTracker.shipment_id == request_data.shipment_id,
-            Payment.is_deleted == False
-        ).first()
+        existing_status = (
+            db.query(StatusTracker)
+            .filter(
+                StatusTracker.shipment_id == request_data.shipment_id,
+                Payment.is_deleted == False,
+            )
+            .first()
+        )
 
         if existing_status:
-            raise HTTPException(
-                status_code=400, detail="Shipment already exists"
-            )
+            raise HTTPException(status_code=400, detail="Shipment already exists")
 
         # Create the tracker
         tracker = StatusTracker(
@@ -1205,35 +1318,47 @@ class StatusTrackerService:
 
 class PaymentService:
     @staticmethod
-    async def create_payment(request, payment_data : CreatePayment, db: Session):
+    async def create_payment(request, payment_data: CreatePayment, db: Session):
         user_id = request.state.user.get("sub", None)
-        user = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        user = (
+            db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+        )
 
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        
+
         # Validate shipment
-        shipment = db.query(Shipment).filter(Shipment.id==payment_data.shipment_id).first()
-        
+        shipment = (
+            db.query(Shipment).filter(Shipment.id == payment_data.shipment_id).first()
+        )
+
         if not shipment:
             raise HTTPException(status_code=404, detail="Shipment not found")
-        
-        existing_payment = db.query(Payment).filter(
-            Payment.shipment_id == payment_data.shipment_id,
-            Payment.payment_status == PaymentStatus.PENDING.value,
-            Payment.is_deleted == False
-        ).first()
+
+        existing_payment = (
+            db.query(Payment)
+            .filter(
+                Payment.shipment_id == payment_data.shipment_id,
+                Payment.payment_status == PaymentStatus.PENDING.value,
+                Payment.is_deleted == False,
+            )
+            .first()
+        )
 
         if existing_payment:
             raise HTTPException(
                 status_code=400, detail="Payment already pending for this shipment"
             )
-        
-        existing_payment = db.query(Payment).filter(
-            Payment.shipment_id == payment_data.shipment_id,
-            Payment.payment_status == PaymentStatus.COMPLETED.value,
-            Payment.is_deleted == False
-        ).first()
+
+        existing_payment = (
+            db.query(Payment)
+            .filter(
+                Payment.shipment_id == payment_data.shipment_id,
+                Payment.payment_status == PaymentStatus.COMPLETED.value,
+                Payment.is_deleted == False,
+            )
+            .first()
+        )
 
         if existing_payment:
             raise HTTPException(
@@ -1247,8 +1372,6 @@ class PaymentService:
             payment_status=payment_data.payment_status,
             payment_date=payment_data.payment_date,
         )
-
-
 
         db.add(payment)
         db.commit()
