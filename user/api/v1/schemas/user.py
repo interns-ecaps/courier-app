@@ -524,3 +524,12 @@ class ReplaceCountry(BaseModel):
     is_deleted: Annotated[bool, Field(description="Soft-delete flag")]
 
     model_config = {"from_attributes": True}
+
+
+class ForgetPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetForgetPassword(BaseModel):
+    secret_token: str
+    new_password: str
+    confirm_password: str
