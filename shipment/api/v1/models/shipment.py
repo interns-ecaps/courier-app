@@ -69,7 +69,7 @@ class Shipment(Base):
     # shipment_status_id = Column(Integer, ForeignKey("status_tracker.id"), nullable=False)
 
     # Package details
-    package_id = Column(Integer, ForeignKey("packages.id"), nullable=False)
+    package_id = Column(Integer, ForeignKey("packages.id"), nullable=True)
     
 
     # Dates

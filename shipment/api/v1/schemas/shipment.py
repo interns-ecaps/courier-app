@@ -112,9 +112,9 @@ class CreateShipment(BaseModel):
         ShipmentType,
         Field(description="Type of shipment: standard, express, overnight, same_day"),
     ]
-    package_id: Annotated[
+    package_id: Optional[Annotated[
         int, Field(gt=0, description="Package ID linked to the shipment")
-    ]
+    ]] = None
 
     pickup_date: Annotated[datetime, Field(description="Pickup datetime")]
     special_instructions: Annotated[

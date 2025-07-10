@@ -30,6 +30,7 @@ from shipment.api.v1.schemas.shipment import (
     UpdatePayment,
 )
 from shipment.api.v1.models.shipment import ShipmentType
+from shipment.api.v1.models.package import PackageType
 
 
 shipment_router = APIRouter()
@@ -360,6 +361,11 @@ async def cancel_shipment(
     db: Session = Depends(get_db),
 ):
     return await views.ShipmentService.cancel_shipment(request, shipment_id, db)
+
+
+@shipment_router.get("/package_types/")
+async def get_package_types():
+    return {"package_types": [pt.value for pt in PackageType]}
 
 
 

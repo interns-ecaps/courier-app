@@ -224,21 +224,23 @@ class ShipmentService:
         if not assigned_supplier:
             raise HTTPException(status_code=400, detail="Assigned supplier not found or inactive")
 
-        # Validate package
-        package = (
-            db.query(Package)
-            .filter(
-                Package.id == shipment_data.package_id,
-                Package.user_id == user_obj.id,
-                Package.is_deleted == False,
+        # Validate package (only if package_id is provided)
+        package = None
+        if shipment_data.package_id:
+            package = (
+                db.query(Package)
+                .filter(
+                    Package.id == shipment_data.package_id,
+                    Package.user_id == user_obj.id,
+                    Package.is_deleted == False,
+                )
+                .first()
             )
-            .first()
-        )
-        if not package:
-            raise HTTPException(
-                status_code=400,
-                detail="Package not found or does not belong to the sender",
-            )
+            if not package:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Package not found or does not belong to the sender",
+                )
 
         # Validate shipment type
         try:
@@ -297,6 +299,7 @@ class ShipmentService:
         status_type: Optional[str] = None,
         pickup_from: Optional[datetime] = None,
         pickup_to: Optional[datetime] = None,
+        delivery_address_text: Optional[str] = None,
         page: int = 1,
         limit: int = 10,
     ):
@@ -335,6 +338,8 @@ class ShipmentService:
             query = query.filter(False)
 
         # Optional filters
+        if delivery_address_text is not None:
+            query = query.filter(Shipment.delivery_address_text == delivery_address_text)
         if shipment_id is not None:
             query = query.filter(Shipment.id == shipment_id)
         if sender_id is not None:
@@ -368,6 +373,17 @@ class ShipmentService:
                 .first()
             )
 
+            # Fetch package details for price/currency
+            package = db.query(Package).filter(Package.id == shipment.package_id).first()
+            if package:
+                package_details = {
+                    "id": package.id,
+                    "final_cost": float(package.final_cost) if package.final_cost is not None else None,
+                    "currency": package.currency.currency if package.currency else None,
+                }
+            else:
+                package_details = None
+
             shipment_data = {
                 "id": shipment.id,
                 "tracking_number": shipment.tracking_number,
@@ -375,6 +391,7 @@ class ShipmentService:
                 "sender_name": shipment.sender_name,
                 "sender_phone": shipment.sender_phone,
                 "sender_email": shipment.sender_email,
+                "delivery_address_text": shipment.delivery_address_text,
                 "recipient_name": shipment.recipient_name,
                 "recipient_phone": shipment.recipient_phone,
                 "recipient_email": shipment.recipient_email,
@@ -389,6 +406,7 @@ class ShipmentService:
                 "insurance_required": shipment.insurance_required,
                 "signature_required": shipment.signature_required,
                 "package_id": shipment.package_id,
+                "package": package_details,
                 "is_deleted": shipment.is_deleted,
                 "created_at": shipment.created_at,
                 "updated_at": shipment.updated_at,
@@ -514,7 +532,21 @@ class ShipmentService:
         # Fetch related details
         # Package details
         package = db.query(Package).filter(Package.id == shipment.package_id).first()
-        if package:
+        if not package or package.is_deleted is True:
+            package_details = {
+                "label": None,
+                "type": None,
+                "weight": None,
+                "length": None,
+                "width": None,
+                "height": None,
+                "is_negotiable": None,
+                "estimated_cost": None,
+                "final_cost": None,
+                "currency": None,
+                "currency_id": None,
+            }
+        else:
             package_label = f"{package.package_type.value.replace('_', ' ').title()} ({package.weight}kg, {package.length}x{package.width}x{package.height}cm)"
             package_details = {
                 "label": package_label,
@@ -526,10 +558,9 @@ class ShipmentService:
                 "is_negotiable": package.is_negotiable,
                 "estimated_cost": float(package.estimated_cost) if package.estimated_cost else None,
                 "final_cost": float(package.final_cost) if package.final_cost else None,
-                "currency": package.currency.currency if package.currency else None
+                "currency": package.currency.currency if package.currency else None,
+                "currency_id": package.currency_id,
             }
-        else:
-            package_details = None
 
         # Supplier (sender) details
         sender = db.query(User).filter(User.id == shipment.sender_id).first()
@@ -539,23 +570,39 @@ class ShipmentService:
         courier = db.query(User).filter(User.id == shipment.courier_id).first() if shipment.courier_id else None
         courier_name = f"{courier.first_name} {courier.last_name}" if courier else None
 
-        # Pickup address label
+        # Pickup address label and details
         pickup_address = db.query(Address).filter(Address.id == shipment.pickup_address_id).first()
-        pickup_address_label = pickup_address.label if pickup_address and pickup_address.label else None
+        pickup_address_label = pickup_address.label if pickup_address is not None and pickup_address.label else None
+        pickup_address_street_address = pickup_address.street_address if pickup_address is not None else None
+        pickup_address_city = pickup_address.city if pickup_address is not None else None
+        pickup_address_state = pickup_address.state if pickup_address is not None else None
+        pickup_address_postal_code = pickup_address.postal_code if pickup_address is not None else None
+        pickup_address_country = pickup_address.country.name if (pickup_address is not None and hasattr(pickup_address, 'country') and pickup_address.country is not None) else None
 
         # Build response
         shipment_data = FetchShipment.model_validate(shipment).dict()
+        shipment_data["delivery_address_text"] = shipment.delivery_address_text
         shipment_data["package"] = package_details
         shipment_data["package_label"] = package_details["label"] if package_details else None
         shipment_data["sender_name"] = sender_name
         shipment_data["courier_name"] = courier_name
         shipment_data["pickup_address_label"] = pickup_address_label
+        shipment_data["pickup_address_street_address"] = pickup_address_street_address
+        shipment_data["pickup_address_city"] = pickup_address_city
+        shipment_data["pickup_address_state"] = pickup_address_state
+        shipment_data["pickup_address_postal_code"] = pickup_address_postal_code
+        shipment_data["pickup_address_country"] = pickup_address_country
         # Remove package_id from response
         if "package_id" in shipment_data:
             del shipment_data["package_id"]
         # Add status info
         shipment_data["status_history"] = status_history_data
         shipment_data["status_type"] = status_type
+        # DEBUG: Print package details and shipment data
+        print("=== SHIPMENT PACKAGE DEBUG ===")
+        print("package_details:", package_details)
+        print("shipment_data:", shipment_data)
+        print("=== END DEBUG ===")
         return shipment_data
 
     @staticmethod
@@ -578,6 +625,27 @@ class ShipmentService:
         if not shipment:
             raise HTTPException(status_code=404, detail="Shipment not found")
 
+        # Get latest status for this shipment
+        latest_status = (
+            db.query(StatusTracker)
+            .filter(StatusTracker.shipment_id == shipment.id)
+            .order_by(StatusTracker.created_at.desc())
+            .first()
+        )
+        # Allow supplier to update only estimated_delivery if latest status is ACCEPTED
+        if (
+            user_obj.user_type == "supplier"
+            and shipment.courier_id == user_obj.id
+            and latest_status
+            and latest_status.status.value == "ACCEPTED"
+            and set(shipment_data.dict(exclude_unset=True).keys()) == {"estimated_delivery"}
+        ):
+            setattr(shipment, "estimated_delivery", shipment_data.estimated_delivery)
+            db.commit()
+            db.refresh(shipment)
+            return FetchShipment.model_validate(shipment)
+
+        # Only allow sender (importer/exporter) or super admin to edit, and only if status is mutable
         # If not super admin, check if this user owns the shipment
         if user_obj.user_type != "super_admin" and shipment.sender_id != user_obj.id:
             raise HTTPException(
@@ -592,7 +660,7 @@ class ShipmentService:
                 .filter(
                     Package.id == shipment_data.package_id,
                     Package.user_id == shipment.sender_id,
-                    Package.is_deleted.is_(False),
+                    Package.is_deleted == False,
                 )
                 .first()
             )
@@ -659,6 +727,7 @@ class ShipmentService:
             )
             .first()
         )
+        
         if not pickup_address:
             raise HTTPException(status_code=400, detail="Invalid pickup address")
 
@@ -732,19 +801,7 @@ class ShipmentService:
 
     @staticmethod
     async def accept_reject_shipment(request, shipment_id: int, action: str, db: Session):
-        """
-        Accepts or rejects a shipment by updating its status.
-        - Only supplier/courier can accept/reject (if status is 'pending' or 'in_transit').
-        - Only allow reject if payment is NOT completed.
-        - Only importer_exporter can cancel (handled in cancel_shipment).
-        Args:
-            request: FastAPI request object (for user info)
-            shipment_id: ID of the shipment to update
-            action: 'accept' or 'reject'
-            db: SQLAlchemy session
-        Returns:
-            Updated shipment object
-        """
+
         user_id = request.state.user.get("sub", None)
         user_obj = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
         if not user_obj:
@@ -790,6 +847,7 @@ class ShipmentService:
         return shipment
 
 
+
 # ========================= PACKAGE SERVICE =========================
 
 
@@ -814,6 +872,11 @@ class PackageService:
         except ValueError:
             raise Exception(f"Invalid package_type: {package_data.package_type}")
 
+        # Ensure final_cost is set
+        final_cost = package_data.final_cost
+        if final_cost is None:
+            final_cost = package_data.estimated_cost if package_data.estimated_cost is not None else 0.0
+
         package_obj = Package(
             user_id=user_obj.id,
             package_type=package_type_enum,
@@ -823,6 +886,7 @@ class PackageService:
             height=package_data.height,
             is_negotiable=package_data.is_negotiable,
             currency=currency,
+            final_cost=final_cost,
         )
         db.add(package_obj)
         db.commit()
