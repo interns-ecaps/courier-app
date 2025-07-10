@@ -466,11 +466,13 @@ async def verify_razorpay_payment(request: Request, db: Session = Depends(get_db
             'razorpay_payment_id': razorpay_payment_id,
             'razorpay_signature': razorpay_signature
         })
-        # --- FIX: Update payment record with razorpay_payment_id ---
+        # --- FIX: Update payment record with razorpay_payment_id and set status to COMPLETED ---
         payment = db.query(Payment).filter(Payment.razorpay_order_id == razorpay_order_id).first()
         if payment:
             payment.razorpay_payment_id = razorpay_payment_id
+            payment.payment_status = PaymentStatus.COMPLETED
             db.commit()
+            print(f"Payment status updated to COMPLETED for payment_id={payment.id}")
         # --- END FIX ---
         return {"status": "success", "message": "Payment verified successfully"}
     except Exception as e:
@@ -533,5 +535,73 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
 async def debug_create_missing_status_trackers(request: Request, db: Session = Depends(get_db)):
     create_missing_status_trackers(db)
     return {"status": "ok", "message": "Missing StatusTrackers created."}
+
+
+@shipment_router.get("/shipments/{shipment_id}/status_id")
+@token_required
+async def get_shipment_status_id(
+    request: Request,
+    shipment_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get the status_id for a shipment, creating one if it doesn't exist"""
+    from shipment.views import ensure_shipment_has_status_tracker
+    
+    # Check if shipment exists
+    shipment = db.query(Shipment).filter(Shipment.id == shipment_id, Shipment.is_deleted == False).first()
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    
+    # Get or create status tracker
+    status_id = ensure_shipment_has_status_tracker(shipment_id, db)
+    if not status_id:
+        raise HTTPException(status_code=500, detail="Failed to get or create status tracker")
+    
+    return {"status_id": status_id, "shipment_id": shipment_id}
+
+
+@shipment_router.get("/shipments/{shipment_id}/debug-payment")
+@token_required
+async def debug_shipment_payment(
+    request: Request,
+    shipment_id: int,
+    db: Session = Depends(get_db)
+):
+    """Debug endpoint to check payment status for a shipment"""
+    from shipment.api.v1.models.payment import Payment, PaymentStatus
+    
+    # Check if shipment exists
+    shipment = db.query(Shipment).filter(Shipment.id == shipment_id, Shipment.is_deleted == False).first()
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    
+    # Get payment for this shipment
+    payment = (
+        db.query(Payment)
+        .filter(Payment.shipment_id == shipment_id, Payment.is_deleted == False)
+        .first()
+    )
+    
+    if not payment:
+        return {
+            "shipment_id": shipment_id,
+            "payment_found": False,
+            "payment_status": None,
+            "expected_status": PaymentStatus.COMPLETED.value,
+            "payment_completed": False
+        }
+    
+    payment_completed = payment.payment_status == PaymentStatus.COMPLETED.value
+    
+    return {
+        "shipment_id": shipment_id,
+        "payment_found": True,
+        "payment_id": payment.id,
+        "payment_status": payment.payment_status,
+        "expected_status": PaymentStatus.COMPLETED.value,
+        "payment_completed": payment_completed,
+        "razorpay_order_id": payment.razorpay_order_id,
+        "razorpay_payment_id": payment.razorpay_payment_id
+    }
 
 

@@ -18,7 +18,12 @@ class Settings(BaseSettings):
     # Razorpay
     razorpay_key_id: str
     razorpay_key_secret: str
+    # SMTP Configuration
     smtp_from_email: str
+    smtp_user: str
+    smtp_password: str
+    smtp_host: str
+    smtp_port: int
     APP_HOST: str
     FORGET_PASSWORD_URL: str
 

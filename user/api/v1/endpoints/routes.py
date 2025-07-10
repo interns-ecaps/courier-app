@@ -269,3 +269,17 @@ async def reset_password_route(
     db: Session = Depends(get_db),
 ):
     return await views.reset_password(rfp, db)
+
+
+@user_router.get("/test-email-config")
+async def test_email_config():
+    """Test endpoint to check email configuration"""
+    return {
+        "smtp_host": settings.smtp_host,
+        "smtp_port": settings.smtp_port,
+        "smtp_user": settings.smtp_user,
+        "smtp_from_email": settings.smtp_from_email,
+        "app_host": settings.APP_HOST,
+        "forget_password_url": settings.FORGET_PASSWORD_URL,
+        "config_loaded": True
+    }
