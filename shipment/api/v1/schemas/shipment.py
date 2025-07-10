@@ -171,6 +171,7 @@ class FetchShipment(BaseModel):
     updated_at: Optional[datetime]
 
     latest_status: Optional[str] = None
+    payment_status: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -484,3 +485,23 @@ class ReplacePayment(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PackageOut(BaseModel):
+    id: int
+    label: str
+    final_cost: float
+    type: str
+    weight: float
+    length: float
+    width: float
+    height: float
+    is_negotiable: bool
+    estimated_cost: float = None
+    currency: str = None
+
+class ShipmentOut(BaseModel):
+    id: int
+    package: PackageOut
+    payment_status: Optional[str] = None
+    # ... add other fields as needed

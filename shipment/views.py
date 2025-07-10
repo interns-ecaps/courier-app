@@ -399,6 +399,7 @@ class ShipmentService:
                 "is_deleted": shipment.is_deleted,
                 "created_at": shipment.created_at,
                 "updated_at": shipment.updated_at,
+                "status_id": latest_status.id if latest_status else None,
             }
             # Lookup supplier name if assigned
             if shipment.courier_id:
@@ -407,6 +408,14 @@ class ShipmentService:
                     shipment_data["supplier_name"] = (
                         f"{supplier.first_name} {supplier.last_name}"
                     )
+            
+            # Add payment status
+            payment = db.query(Payment).filter(
+                Payment.shipment_id == shipment.id, 
+                Payment.is_deleted == False
+            ).first()
+            shipment_data["payment_status"] = payment.payment_status.value if payment else None
+            
             results.append(shipment_data)
 
         total = query.count()
@@ -485,12 +494,28 @@ class ShipmentService:
             else None
         )
         status_type = latest_status_obj.status.value if latest_status_obj else None
+        
+        # Ensure we have a status tracker and get its ID
+        if not latest_status_obj:
+            print(f"[DEBUG] No status tracker found for shipment {shipment_id}, creating one...")
+            status_id = ensure_shipment_has_status_tracker(shipment_id, db)
+            if status_id:
+                latest_status_obj = db.query(StatusTracker).filter(StatusTracker.id == status_id).first()
+                status_type = latest_status_obj.status.value if latest_status_obj else "PENDING"
+            else:
+                print(f"[DEBUG] Failed to create status tracker for shipment {shipment_id}")
+                status_type = "PENDING"
+        else:
+            status_id = latest_status_obj.id
+        
         # Fetch related details
         # Package details
         package = db.query(Package).filter(Package.id == shipment.package_id).first()
+        # Do NOT block viewing if final_cost is missing or zero
         if package:
             package_label = f"{package.package_type.value.replace('_', ' ').title()} ({package.weight}kg, {package.length}x{package.width}x{package.height}cm)"
             package_details = {
+                "id": package.id,
                 "label": package_label,
                 "type": package.package_type.value,
                 "weight": float(package.weight),
@@ -501,7 +526,7 @@ class ShipmentService:
                 "estimated_cost": (
                     float(package.estimated_cost) if package.estimated_cost else None
                 ),
-                "final_cost": float(package.final_cost) if package.final_cost else None,
+                "final_cost": float(package.final_cost) if package.final_cost else 0,
                 "currency": package.currency.currency if package.currency else None,
             }
         else:
@@ -546,6 +571,15 @@ class ShipmentService:
         # Add status info
         shipment_data["status_history"] = status_history_data
         shipment_data["status_type"] = status_type
+        shipment_data["status_id"] = latest_status_obj.id if latest_status_obj else None
+        
+        # Add payment status
+        payment = db.query(Payment).filter(
+            Payment.shipment_id == shipment_id, 
+            Payment.is_deleted == False
+        ).first()
+        shipment_data["payment_status"] = payment.payment_status.value if payment else None
+        
         return shipment_data
 
     @staticmethod
@@ -800,36 +834,60 @@ class ShipmentService:
             .filter(Payment.shipment_id == shipment_id, Payment.is_deleted == False)
             .first()
         )
+        print(f"DEBUG: Payment found: {payment is not None}")
+        if payment:
+            print(f"DEBUG: Payment ID: {payment.id}")
+            print(f"DEBUG: Payment status: {payment.payment_status}")
+            print(f"DEBUG: Expected status: {PaymentStatus.COMPLETED.value}")
         payment_completed = (
-            payment and payment.payment_status == PaymentStatus.COMPLETED.value
+            payment and payment.payment_status == PaymentStatus.COMPLETED
         )
 
+        # Check current status to determine payment requirements
+        current_status = status_tracker.status.value.upper()
+        print(f"DEBUG: Current status: {current_status}, Action: {action}, Payment completed: {payment_completed}")
+        
         if action.lower() == "accept" or action.lower() == "accepted":
-            new_status = "ACCEPTED"
+            # Allow initial acceptance (PENDING → ACCEPTED) without payment
+            if current_status == "PENDING":
+                print(f"DEBUG: Allowing initial acceptance without payment")
+                new_status = "ACCEPTED"
+            else:
+                # For other status changes, require payment
+                if not payment_completed:
+                    print(f"DEBUG: Payment required for status change from {current_status} to ACCEPTED")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Cannot accept shipment. Payment must be completed first.",
+                    )
+                new_status = "ACCEPTED"
         elif action.lower() == "reject" or action.lower() == "rejected":
-            if payment_completed:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Cannot reject shipment after payment is completed.",
-                )
+            # Always allow rejection without payment
+            print(f"DEBUG: Allowing rejection without payment")
             new_status = "REJECTED"
         elif action.lower() == "in_transit":
-            if payment_completed:
+            # Require payment for IN_TRANSIT
+            if not payment_completed:
+                print(f"DEBUG: Payment required for IN_TRANSIT")
                 raise HTTPException(
                     status_code=400,
-                    detail="Cannot reject shipment after payment is completed.",
+                    detail="Cannot move shipment to IN_TRANSIT. Payment must be completed first.",
                 )
+            print(f"DEBUG: Allowing IN_TRANSIT with payment completed")
             new_status = "IN_TRANSIT"
         elif action.lower() == "delivered":
-            if payment_completed:
+            # Require payment for DELIVERED
+            if not payment_completed:
+                print(f"DEBUG: Payment required for DELIVERED")
                 raise HTTPException(
                     status_code=400,
-                    detail="Cannot reject shipment after payment is completed.",
+                    detail="Cannot mark shipment as DELIVERED. Payment must be completed first.",
                 )
+            print(f"DEBUG: Allowing DELIVERED with payment completed")
             new_status = "DELIVERED"
         else:
             raise HTTPException(
-                status_code=400, detail="Invalid action. Must be 'accept' or 'reject'."
+                status_code=400, detail="Invalid action. Must be 'accept', 'reject', 'in_transit', or 'delivered'."
             )
         new_status_tracker = StatusTracker(
             shipment_id=shipment.id,
@@ -1144,12 +1202,17 @@ class StatusTrackerService:
 
         return FetchStatus.model_validate(status_record)
 
+    @staticmethod
     async def update_status_tracker(
         request,
         status_id: int,
         status_data: UpdateStatusTracker,
         db: Session,
     ):
+        print(f"[DEBUG] === STATUS UPDATE REQUEST ===")
+        print(f"[DEBUG] Status ID: {status_id}")
+        print(f"[DEBUG] Payload: {status_data.dict()}")
+        
         # Get the current user
         user_id = request.state.user.get("sub")
         user_obj = (
@@ -1157,49 +1220,121 @@ class StatusTrackerService:
         )
 
         if not user_obj:
+            print(f"[DEBUG] User not found for ID: {user_id}")
             raise HTTPException(status_code=404, detail="User not found")
 
-        # Fetch the status tracker
+        print(f"[DEBUG] User ID: {user_id}, User Type: {user_obj.user_type}")
+
+        # Fetch the status tracker with shipment relationship loaded
         status = (
             db.query(StatusTracker)
+            .options(joinedload(StatusTracker.shipment))
             .filter(StatusTracker.id == status_id, StatusTracker.is_deleted == False)
             .first()
         )
 
         if not status:
+            print(f"[DEBUG] Status tracker not found for ID: {status_id}")
             raise HTTPException(status_code=404, detail="Status record not found.")
 
-        # Validate permission: only super_admin or shipment sender can update
+        print(f"[DEBUG] Found status tracker - Shipment ID: {status.shipment_id}, Current Status: {status.status}")
+        
+        # Validate permission: super_admin, shipment sender, or assigned supplier can update
         if user_obj.user_type != "super_admin":
-            if not status.shipment or status.shipment.sender_id != user_obj.id:
+            shipment = status.shipment
+            if not shipment:
+                print(f"[DEBUG] No shipment found for status {status_id}, trying direct fetch...")
+                # Try to fetch shipment directly
+                shipment = db.query(Shipment).filter(Shipment.id == status.shipment_id).first()
+                if not shipment:
+                    print(f"[DEBUG] Shipment not found for ID: {status.shipment_id}")
+                    raise HTTPException(status_code=404, detail="Shipment not found for this status")
+            
+            print(f"[DEBUG] Shipment found - Sender ID: {shipment.sender_id}, Courier ID: {shipment.courier_id}")
+            
+            # Check if user is the sender (importer/exporter)
+            is_sender = shipment.sender_id == user_obj.id
+            # Check if user is the assigned supplier (courier)
+            is_assigned_supplier = shipment.courier_id == user_obj.id and user_obj.user_type == "supplier"
+            
+            print(f"[DEBUG] Permission check - Is sender: {is_sender}, Is assigned supplier: {is_assigned_supplier}")
+            
+            if not (is_sender or is_assigned_supplier):
+                print(f"[DEBUG] Permission denied for user {user_id} (type: {user_obj.user_type})")
+                print(f"[DEBUG] Shipment sender: {shipment.sender_id}, Courier: {shipment.courier_id}")
                 raise HTTPException(
                     status_code=403, detail="Not authorized to update this status"
                 )
 
+        print(f"[DEBUG] Permission granted, proceeding with update...")
+
+        # Payment enforcement logic for suppliers
+        if user_obj.user_type == "supplier" and status_data.status is not None:
+            # Get payment for this shipment
+            payment = (
+                db.query(Payment)
+                .filter(Payment.shipment_id == status.shipment_id, Payment.is_deleted == False)
+                .first()
+            )
+            payment_completed = (
+                payment and payment.payment_status == PaymentStatus.COMPLETED
+            )
+            
+            print(f"[DEBUG] Payment check - Payment exists: {payment is not None}, Payment completed: {payment_completed}")
+            
+            # Allow initial acceptance without payment
+            if status_data.status.value == "ACCEPTED" and status.status.value == "PENDING":
+                print(f"[DEBUG] Allowing initial acceptance from PENDING to ACCEPTED without payment requirement")
+            # Require payment for advanced status changes
+            elif status_data.status.value in ["IN_TRANSIT", "DELIVERED"] and not payment_completed:
+                print(f"[DEBUG] Payment required for status change to {status_data.status.value}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot change status to {status_data.status.value}. Payment must be completed first."
+                )
+            # Allow rejection without payment
+            elif status_data.status.value == "REJECTED":
+                print(f"[DEBUG] Allowing rejection without payment requirement")
+            # For other status changes, check payment
+            elif status_data.status.value != "PENDING" and not payment_completed:
+                print(f"[DEBUG] Payment required for status change to {status_data.status.value}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot change status to {status_data.status.value}. Payment must be completed first."
+                )
+
         # Update fields if provided
+        original_status = status.status
         if status_data.status is not None:
+            print(f"[DEBUG] Updating status from {original_status} to {status_data.status}")
             status.status = status_data.status
 
         if status_data.current_location is not None:
+            print(f"[DEBUG] Updating location to: {status_data.current_location}")
             status.current_location = status_data.current_location
 
         if status_data.is_delivered is not None:
+            print(f"[DEBUG] Updating is_delivered to: {status_data.is_delivered}")
             status.is_delivered = status_data.is_delivered
 
         if status_data.is_deleted is not None:
+            print(f"[DEBUG] Updating is_deleted to: {status_data.is_deleted}")
             status.is_deleted = status_data.is_deleted
 
         try:
             db.commit()
             db.refresh(status)
+            print(f"[DEBUG] Status update successful - New status: {status.status}")
         except Exception as e:
             db.rollback()
+            print(f"[DEBUG] Database error during update: {str(e)}")
             raise HTTPException(
                 status_code=500, detail=f"Error while updating status: {str(e)}"
             )
 
         return status
 
+    @staticmethod
     async def replace_status_tracker(
         request, status_id: int, new_data: ReplaceStatus, db: Session
     ):
@@ -1214,6 +1349,7 @@ class StatusTrackerService:
         # Get existing status
         status = (
             db.query(StatusTracker)
+            .options(joinedload(StatusTracker.shipment))
             .filter(StatusTracker.id == status_id, StatusTracker.is_deleted == False)
             .first()
         )
@@ -1230,11 +1366,17 @@ class StatusTrackerService:
         if not shipment:
             raise HTTPException(status_code=400, detail="Shipment not found")
 
-        # Only allow if user is super_admin or shipment owner
-        if user_obj.user_type != "super_admin" and shipment.sender_id != user_obj.id:
-            raise HTTPException(
-                status_code=403, detail="Not authorized to update this status"
-            )
+        # Validate permission: super_admin, shipment sender, or assigned supplier can update
+        if user_obj.user_type != "super_admin":
+            # Check if user is the sender (importer/exporter)
+            is_sender = shipment.sender_id == user_obj.id
+            # Check if user is the assigned supplier (courier)
+            is_assigned_supplier = shipment.courier_id == user_obj.id and user_obj.user_type == "supplier"
+            
+            if not (is_sender or is_assigned_supplier):
+                raise HTTPException(
+                    status_code=403, detail="Not authorized to update this status"
+                )
 
         # Replace all fields
         status.shipment_id = new_data.shipment_id
@@ -1277,6 +1419,16 @@ class PaymentService:
 
         if not shipment:
             raise HTTPException(status_code=404, detail="Shipment not found")
+
+        # ENFORCE: Only allow payment if latest status is ACCEPTED
+        latest_status = (
+            db.query(StatusTracker)
+            .filter(StatusTracker.shipment_id == payment_data.shipment_id)
+            .order_by(StatusTracker.id.desc())
+            .first()
+        )
+        if not latest_status or str(latest_status.status) != "ACCEPTED":
+            raise HTTPException(status_code=400, detail="Payment can only be made after supplier accepts the shipment.")
 
         # Store Razorpay order ID if provided
         razorpay_order_id = getattr(payment_data, 'razorpay_order_id', None)
@@ -1489,6 +1641,46 @@ class PaymentService:
         db.commit()
         db.refresh(payment)
         return payment
+
+
+def ensure_shipment_has_status_tracker(shipment_id: int, db: Session):
+    """
+    Ensure a shipment has a status tracker. If not, create one.
+    Returns the status tracker ID.
+    """
+    # Check if status tracker exists
+    existing_status = (
+        db.query(StatusTracker)
+        .filter(StatusTracker.shipment_id == shipment_id, StatusTracker.is_deleted == False)
+        .first()
+    )
+    
+    if existing_status:
+        print(f"[DEBUG] Status tracker already exists for shipment {shipment_id}: {existing_status.id}")
+        return existing_status.id
+    
+    # Get shipment to get package_id
+    shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
+    if not shipment:
+        print(f"[DEBUG] Shipment {shipment_id} not found")
+        return None
+    
+    # Create new status tracker
+    new_status = StatusTracker(
+        shipment_id=shipment_id,
+        package_id=shipment.package_id,
+        status=ShipmentStatus.PENDING,
+        current_location=None,
+        is_delivered=False,
+        is_deleted=False
+    )
+    
+    db.add(new_status)
+    db.commit()
+    db.refresh(new_status)
+    
+    print(f"[DEBUG] Created new status tracker {new_status.id} for shipment {shipment_id}")
+    return new_status.id
 
 
 def create_missing_status_trackers(db: Session):
