@@ -150,6 +150,9 @@ class FetchShipment(BaseModel):
     # Courier and address info
     courier_id: Optional[int]
     pickup_address_id: int
+    
+    # Delivery address (free-text)
+    delivery_address_text: Optional[str] = None
 
     # Shipment details
     shipment_type: ShipmentType

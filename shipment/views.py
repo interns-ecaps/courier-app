@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy import desc, or_
 from shipment.api.v1.models.package import Currency, Package, PackageType
@@ -273,13 +273,16 @@ class ShipmentService:
 
         db.add(new_shipment)
         db.commit()
-
-        await StatusTrackerService.create_status_tracker(
-            request=request,
-            request_data=CreateStatusTracker(shipment_id=new_shipment.id),
-            db=db,
+        # Always create a StatusTracker entry for PENDING
+        new_status_tracker = StatusTracker(
+            shipment_id=new_shipment.id,
+            status=ShipmentStatus.PENDING,
+            package_id=new_shipment.package_id,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
-
+        db.add(new_status_tracker)
+        db.commit()
         db.refresh(new_shipment)
         return new_shipment
 
@@ -388,6 +391,7 @@ class ShipmentService:
                 # Show supplier name instead of courier_id
                 "supplier_name": None,
                 "pickup_address_id": shipment.pickup_address_id,
+                "delivery_address_text": shipment.delivery_address_text,
                 "status_type": latest_status.status if latest_status else "PENDING",
                 "pickup_date": shipment.pickup_date,
                 "delivery_date": shipment.delivery_date,
@@ -558,6 +562,7 @@ class ShipmentService:
 
         # Build response
         shipment_data = FetchShipment.model_validate(shipment).dict()
+        shipment_data["delivery_address_text"] = shipment.delivery_address_text
         shipment_data["package"] = package_details
         shipment_data["package_label"] = (
             package_details["label"] if package_details else None
@@ -602,33 +607,44 @@ class ShipmentService:
         if not shipment:
             raise HTTPException(status_code=404, detail="Shipment not found")
 
-        # If not super admin, check if this user owns the shipment
-        if user_obj.user_type != "super_admin" and shipment.sender_id != user_obj.id:
+        # Fetch latest status for the shipment
+        latest_status = (
+            db.query(StatusTracker)
+            .filter(StatusTracker.shipment_id == shipment_id)
+            .order_by(StatusTracker.id.desc())
+            .first()
+        )
+        final_statuses = {"DELIVERED", "CANCELLED", "REJECTED"}
+        current_status = (
+            latest_status.status.value if latest_status and hasattr(latest_status.status, "value") else str(latest_status.status) if latest_status else None
+        )
+
+        # Only allow update if not in a final state
+        if current_status and current_status.upper() in final_statuses:
+            raise HTTPException(status_code=403, detail=f"Cannot update shipment in final state: {current_status}")
+
+        # Permission: allow assigned supplier (courier), or super_admin
+        is_supplier = user_obj.user_type == "supplier" and shipment.courier_id == user_obj.id
+        is_super_admin = user_obj.user_type == "super_admin"
+        if not (is_supplier or is_super_admin):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to modify this shipment",
+                status_code=403,
+                detail="Only the assigned supplier or a super_admin can update estimated_delivery for this shipment."
             )
 
-        # Validate that the package (if updated) still belongs to the sender
-        if shipment_data.package_id:
-            package = (
-                db.query(Package)
-                .filter(
-                    Package.id == shipment_data.package_id,
-                    Package.user_id == shipment.sender_id,
-                    Package.is_deleted.is_(False),
-                )
-                .first()
-            )
-            if not package:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid package: either not found or doesn't belong to the sender",
-                )
+        # Additional restriction: Only allow update if status is IN_TRANSIT and payment is COMPLETED
+        if not (current_status and current_status.upper() == "IN_TRANSIT"):
+            raise HTTPException(status_code=403, detail="ETA can only be updated when shipment status is IN_TRANSIT.")
+        payment = db.query(Payment).filter(Payment.shipment_id == shipment_id, Payment.is_deleted == False).order_by(Payment.id.desc()).first()
+        payment_completed = payment and ((payment.payment_status.value if hasattr(payment.payment_status, "value") else str(payment.payment_status)) == "COMPLETED")
+        if not payment_completed:
+            raise HTTPException(status_code=403, detail="ETA can only be updated after payment is COMPLETED.")
 
-        # Apply updates
-        for key, value in shipment_data.dict(exclude_unset=True).items():
-            setattr(shipment, key, value)
+        # Only allow updating estimated_delivery (other fields ignored if present)
+        update_fields = shipment_data.dict(exclude_unset=True)
+        if not update_fields or "estimated_delivery" not in update_fields:
+            raise HTTPException(status_code=400, detail="estimated_delivery field is required.")
+        shipment.estimated_delivery = update_fields["estimated_delivery"]
 
         db.commit()
         db.refresh(shipment)
@@ -769,6 +785,17 @@ class ShipmentService:
         status_tracker.status = "CANCELLED"
         db.commit()
         db.refresh(shipment)
+
+        # When cancelling, create a new StatusTracker entry for CANCELLED
+        new_status_tracker = StatusTracker(
+            shipment_id=shipment.id,
+            status="CANCELLED",
+            package_id=shipment.package_id,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        db.add(new_status_tracker)
+        db.commit()
         return {"detail": "Shipment cancelled", "status": status_tracker.status}
 
     @staticmethod
@@ -847,56 +874,46 @@ class ShipmentService:
         current_status = status_tracker.status.value.upper()
         print(f"DEBUG: Current status: {current_status}, Action: {action}, Payment completed: {payment_completed}")
         
+        # Enforce sequential status transitions
         if action.lower() == "accept" or action.lower() == "accepted":
-            # Allow initial acceptance (PENDING → ACCEPTED) without payment
-            if current_status == "PENDING":
-                print(f"DEBUG: Allowing initial acceptance without payment")
-                new_status = "ACCEPTED"
-            else:
-                # For other status changes, require payment
-                if not payment_completed:
-                    print(f"DEBUG: Payment required for status change from {current_status} to ACCEPTED")
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Cannot accept shipment. Payment must be completed first.",
-                    )
-                new_status = "ACCEPTED"
-        elif action.lower() == "reject" or action.lower() == "rejected":
-            # Always allow rejection without payment
-            print(f"DEBUG: Allowing rejection without payment")
-            new_status = "REJECTED"
+            if current_status != "PENDING":
+                raise HTTPException(status_code=400, detail="Can only accept a shipment from PENDING status.")
+            new_status = "ACCEPTED"
         elif action.lower() == "in_transit":
-            # Require payment for IN_TRANSIT
+            if current_status != "ACCEPTED":
+                raise HTTPException(status_code=400, detail="Can only mark as IN_TRANSIT from ACCEPTED status.")
             if not payment_completed:
-                print(f"DEBUG: Payment required for IN_TRANSIT")
                 raise HTTPException(
                     status_code=400,
                     detail="Cannot move shipment to IN_TRANSIT. Payment must be completed first.",
                 )
-            print(f"DEBUG: Allowing IN_TRANSIT with payment completed")
             new_status = "IN_TRANSIT"
         elif action.lower() == "delivered":
-            # Require payment for DELIVERED
+            if current_status != "IN_TRANSIT":
+                raise HTTPException(status_code=400, detail="Can only mark as DELIVERED from IN_TRANSIT status.")
             if not payment_completed:
-                print(f"DEBUG: Payment required for DELIVERED")
                 raise HTTPException(
                     status_code=400,
                     detail="Cannot mark shipment as DELIVERED. Payment must be completed first.",
                 )
-            print(f"DEBUG: Allowing DELIVERED with payment completed")
             new_status = "DELIVERED"
+        elif action.lower() == "reject" or action.lower() == "rejected":
+            new_status = "REJECTED"
         else:
             raise HTTPException(
                 status_code=400, detail="Invalid action. Must be 'accept', 'reject', 'in_transit', or 'delivered'."
             )
+        # Instead of only updating the status, always create a new StatusTracker entry
         new_status_tracker = StatusTracker(
             shipment_id=shipment.id,
             status=new_status,
             package_id=status_tracker.package_id,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         db.add(new_status_tracker)
+        # Update main shipment status
+        # shipment.status = new_status  # <-- keep main shipment status in sync
         db.commit()
         db.refresh(shipment)
         return shipment
@@ -935,6 +952,7 @@ class PackageService:
             height=package_data.height,
             is_negotiable=package_data.is_negotiable,
             currency=currency,
+            final_cost=package_data.final_cost,  # <-- set from request
         )
         db.add(package_obj)
         db.commit()
@@ -1303,12 +1321,30 @@ class StatusTrackerService:
                     detail=f"Cannot change status to {status_data.status.value}. Payment must be completed first."
                 )
 
-        # Update fields if provided
-        original_status = status.status
-        if status_data.status is not None:
-            print(f"[DEBUG] Updating status from {original_status} to {status_data.status}")
-            status.status = status_data.status
-
+        # Enforce sequential status transitions and prevent duplicates
+        requested_status = status_data.status.value if hasattr(status_data.status, "value") else str(status_data.status)
+        
+        # Get the latest status for this shipment (not the status of the specific row being updated)
+        latest_status = (
+            db.query(StatusTracker)
+            .filter(StatusTracker.shipment_id == status.shipment_id)
+            .order_by(StatusTracker.created_at.desc())
+            .first()
+        )
+        current_status = latest_status.status.value if latest_status and hasattr(latest_status.status, "value") else str(latest_status.status) if latest_status else "PENDING"
+        
+        print(f"[DEBUG] Latest status: {current_status}, Requested status: {requested_status}")
+        
+        if requested_status == current_status:
+            raise HTTPException(status_code=400, detail="Cannot set the same status twice in a row.")
+        if requested_status == "ACCEPTED" and current_status != "PENDING":
+            raise HTTPException(status_code=400, detail="Can only accept a shipment from PENDING status.")
+        if requested_status == "IN_TRANSIT" and current_status != "ACCEPTED":
+            raise HTTPException(status_code=400, detail="Can only mark as IN_TRANSIT from ACCEPTED status.")
+        if requested_status == "DELIVERED" and current_status != "IN_TRANSIT":
+            raise HTTPException(status_code=400, detail="Can only mark as DELIVERED from IN_TRANSIT status.")
+        # Allow REJECTED from any status
+        # Update fields if provided (but NOT the status field)
         if status_data.current_location is not None:
             print(f"[DEBUG] Updating location to: {status_data.current_location}")
             status.current_location = status_data.current_location
@@ -1321,10 +1357,22 @@ class StatusTrackerService:
             print(f"[DEBUG] Updating is_deleted to: {status_data.is_deleted}")
             status.is_deleted = status_data.is_deleted
 
+        # Create a new StatusTracker entry for the status change
+        if status_data.status is not None:
+            print(f"[DEBUG] Creating new StatusTracker entry for status: {status_data.status}")
+            new_status_tracker = StatusTracker(
+                shipment_id=status.shipment_id,
+                status=status_data.status,
+                package_id=status.package_id,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+            db.add(new_status_tracker)
+
         try:
             db.commit()
             db.refresh(status)
-            print(f"[DEBUG] Status update successful - New status: {status.status}")
+            print(f"[DEBUG] Status update successful")
         except Exception as e:
             db.rollback()
             print(f"[DEBUG] Database error during update: {str(e)}")
@@ -1378,13 +1426,57 @@ class StatusTrackerService:
                     status_code=403, detail="Not authorized to update this status"
                 )
 
-        # Replace all fields
-        status.shipment_id = new_data.shipment_id
-        status.package_id = new_data.package_id
-        status.status = new_data.status
-        status.current_location = new_data.current_location
-        status.is_delivered = new_data.is_delivered
-        status.is_deleted = new_data.is_deleted
+        # Enforce sequential status transitions and prevent duplicates
+        requested_status = new_data.status.value if hasattr(new_data.status, "value") else str(new_data.status)
+        
+        # Get the latest status for this shipment (not the status of the specific row being updated)
+        latest_status = (
+            db.query(StatusTracker)
+            .filter(StatusTracker.shipment_id == status.shipment_id)
+            .order_by(StatusTracker.created_at.desc())
+            .first()
+        )
+        current_status = latest_status.status.value if latest_status and hasattr(latest_status.status, "value") else str(latest_status.status) if latest_status else "PENDING"
+        
+        print(f"[DEBUG] Latest status: {current_status}, Requested status: {requested_status}")
+        
+        if requested_status == current_status:
+            raise HTTPException(status_code=400, detail="Cannot set the same status twice in a row.")
+        if requested_status == "ACCEPTED" and current_status != "PENDING":
+            raise HTTPException(status_code=400, detail="Can only accept a shipment from PENDING status.")
+        if requested_status == "IN_TRANSIT" and current_status != "ACCEPTED":
+            raise HTTPException(status_code=400, detail="Can only mark as IN_TRANSIT from ACCEPTED status.")
+        if requested_status == "DELIVERED" and current_status != "IN_TRANSIT":
+            raise HTTPException(status_code=400, detail="Can only mark as DELIVERED from IN_TRANSIT status.")
+        # Allow REJECTED from any status
+        # Create new StatusTracker entry for the status change
+        new_status_tracker = StatusTracker(
+            shipment_id=status.shipment_id,
+            status=new_data.status,
+            package_id=status.package_id,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        db.add(new_status_tracker)
+        db.commit()
+
+        # Update fields if provided
+        original_status = status.status
+        if new_data.status is not None:
+            print(f"[DEBUG] Updating status from {original_status} to {new_data.status}")
+            status.status = new_data.status
+
+        if new_data.current_location is not None:
+            print(f"[DEBUG] Updating location to: {new_data.current_location}")
+            status.current_location = new_data.current_location
+
+        if new_data.is_delivered is not None:
+            print(f"[DEBUG] Updating is_delivered to: {new_data.is_delivered}")
+            status.is_delivered = new_data.is_delivered
+
+        if new_data.is_deleted is not None:
+            print(f"[DEBUG] Updating is_deleted to: {new_data.is_deleted}")
+            status.is_deleted = new_data.is_deleted
 
         try:
             db.commit()
@@ -1672,7 +1764,6 @@ def ensure_shipment_has_status_tracker(shipment_id: int, db: Session):
         status=ShipmentStatus.PENDING,
         current_location=None,
         is_delivered=False,
-        is_deleted=False
     )
     
     db.add(new_status)
