@@ -39,6 +39,7 @@ from shipment.api.v1.schemas.shipment import (
 from common.config import settings
 from shipment.api.v1.models.shipment import Shipment
 from shipment.api.v1.models.shipment import ShipmentType
+from shipment.api.v1.models.package import PackageType
 
 
 shipment_router = APIRouter()
@@ -103,6 +104,10 @@ async def replace_currency(
 @shipment_router.get("/shipment_types/")
 async def get_shipment_types():
     return {"shipment_types": [st.value for st in ShipmentType]}
+
+@shipment_router.get("/package_types/")
+async def get_package_types():
+    return {"package_types": [pt.value for pt in PackageType]}
 
 @shipment_router.post("/create_shipment/")
 @token_required
