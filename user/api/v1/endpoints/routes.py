@@ -205,6 +205,10 @@ async def replace_address_route(
 
 # ======================= COUNTRIES =======================
 
+@user_router.get("/test-countries/")
+async def test_countries():
+    """Test endpoint to check if server is running"""
+    return {"message": "Server is running", "status": "ok"}
 
 @user_router.post("/create_country/", response_model=FetchCountry)
 @token_required

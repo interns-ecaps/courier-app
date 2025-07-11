@@ -137,6 +137,7 @@ async def get_shipments(
     shipment_type: Optional[str] = Query(default=None),
     pickup_from: Optional[str] = Query(default=None),
     pickup_to: Optional[str] = Query(default=None),
+    status_type: Optional[str] = Query(default=None),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=10, ge=1),
     db: Session = Depends(get_db),
@@ -165,6 +166,7 @@ async def get_shipments(
         shipment_type=shipment_type,
         pickup_from=pickup_from_dt,
         pickup_to=pickup_to_dt,
+        status_type=status_type,
         page=page,
         limit=limit,
     )
