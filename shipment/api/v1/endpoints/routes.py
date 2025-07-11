@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Path, Request
 from sqlalchemy.orm import Session
 from typing import Optional, List
@@ -437,7 +437,7 @@ async def create_razorpay_order(request: Request, db: Session = Depends(get_db))
             package_id=package_id,
             payment_method="ONLINE",
             payment_status=PaymentStatus.PENDING,
-            payment_date=datetime.utcnow(),
+            payment_date=datetime.now(timezone.utc),
             razorpay_order_id=order["id"]
         )
         db.add(payment)

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from typing import Optional
 
 from sqlalchemy import func, extract
@@ -78,7 +78,7 @@ async def forget_password(background_tasks: BackgroundTasks, fpr: ForgetPassword
     print(f"DEBUG: User found: {user.email}")
     
     # Generate token
-    data = {"sub": user.email, "exp": datetime.utcnow() + timedelta(minutes=FORGET_PASSWORD_LINK_EXPIRE_MINUTES)}
+    data = {"sub": user.email, "exp": datetime.now(timezone.utc) + timedelta(minutes=FORGET_PASSWORD_LINK_EXPIRE_MINUTES)}
     secret_token = jwt.encode(data, FORGET_PWD_SECRET_KEY, ALGORITHM)
     forget_url_link = f"{settings.APP_HOST}{settings.FORGET_PASSWORD_URL}{secret_token}"
     
@@ -201,7 +201,7 @@ def signup_user(user_data: SignUpRequest, db: Session):
         phone_number=user_data.phone_number,
         user_type=user_data.user_type,
         # is_active=True,
-        updated_at=datetime.utcnow(),
+        updated_at=datetime.now(timezone.utc),
     )
     db.add(new_user)
     db.commit()
@@ -793,7 +793,7 @@ class DashboardService:
         user_type = user_info.get("user_type")
         user_id = int(user_info.get("sub"))  # Ensure user_id is int for queries
 
-        today = datetime.utcnow().date()
+        today = datetime.now(timezone.utc).date()
         month_start = today.replace(day=1)
 
         # Helper queries
@@ -981,7 +981,7 @@ def get_shipments_per_month(db, user_type, user_id, start_date=None, end_date=No
         return {"labels": labels, "data": counts}
     else:
         # Default: last 12 months including current month
-        today = datetime.utcnow().date().replace(day=1)
+        today = datetime.now(timezone.utc).date().replace(day=1)
         months = []
         for i in range(11, -1, -1):
             if today.month - i > 0:
@@ -1030,7 +1030,7 @@ def get_revenue_per_month(db, user_type, user_id, start_date=None, end_date=None
         last_day = datetime.strptime(end_date, '%Y-%m-%d').date().replace(day=1)
         months = month_range(first_day, last_day)
     else:
-        today = datetime.utcnow().date().replace(day=1)
+        today = datetime.now(timezone.utc).date().replace(day=1)
         months = []
         for i in range(11, -1, -1):
             if today.month - i > 0:
